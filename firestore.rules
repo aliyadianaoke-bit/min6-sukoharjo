@@ -27,7 +27,7 @@ service cloud.firestore {
     }
 
     function isValidMusyrif(data) {
-      return data.id is string && data.id.size() <= 128
+      return (!('id' in data) || (data.id is string && data.id.size() <= 128))
         && data.nim is string && data.nim.size() <= 50
         && data.nama is string && data.nama.size() <= 150
         && data.username is string && data.username.size() <= 100
@@ -37,7 +37,7 @@ service cloud.firestore {
     }
 
     function isValidStudent(data) {
-      return data.id is string && data.id.size() <= 128
+      return (!('id' in data) || (data.id is string && data.id.size() <= 128))
         && data.noInduk is string && data.noInduk.size() <= 50
         && data.nama is string && data.nama.size() <= 150
         && data.kelasId is string && data.kelasId.size() <= 128
