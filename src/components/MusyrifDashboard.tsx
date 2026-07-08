@@ -413,6 +413,313 @@ export default function MusyrifDashboard({
     }, 500);
   };
 
+  const handleCetakPDFBulanan = () => {
+    const selectedSiswa = students.find(s => s.id === selectedBulanSiswaId);
+    if (!selectedHalaqohId || !activeHalaqohObj || !selectedSiswa) return;
+
+    const iframe = document.createElement('iframe');
+    iframe.style.position = 'absolute';
+    iframe.style.width = '0px';
+    iframe.style.height = '0px';
+    iframe.style.border = 'none';
+    document.body.appendChild(iframe);
+
+    const iframeDoc = iframe.contentWindow?.document || iframe.contentDocument;
+    if (!iframeDoc) return;
+
+    const getBulanName = (monthCode: string) => {
+      const months: Record<string, string> = {
+        '01': 'Januari', '02': 'Februari', '03': 'Maret', '04': 'April',
+        '05': 'Mei', '06': 'Juni', '07': 'Juli', '08': 'Agustus',
+        '09': 'September', '10': 'Oktober', '11': 'November', '12': 'Desember'
+      };
+      return months[monthCode] || monthCode;
+    };
+
+    const bulanName = getBulanName(selectedBulanMonth);
+
+    const totalA = studentMonthlyLogs.filter(j => j.nilai === 'A').length;
+    const totalB = studentMonthlyLogs.filter(j => j.nilai === 'B').length;
+    const totalC = studentMonthlyLogs.filter(j => j.nilai === 'C').length;
+    const totalD = studentMonthlyLogs.filter(j => j.nilai === 'D').length;
+    const totalE = studentMonthlyLogs.filter(j => j.nilai === 'E').length;
+
+    const tableRowsHtml = studentMonthlyLogs.map((log, index) => {
+      const labelNilai = log.nilai === 'A' ? 'Mumtaz (A)' : 
+                         log.nilai === 'B' ? 'Jayyid Jidid (B)' : 
+                         log.nilai === 'C' ? 'Jayyid (C)' : 
+                         log.nilai === 'D' ? 'Maqbul (D)' : 'Rosib (E)';
+      return `
+        <tr>
+          <td style="text-align: center; font-weight: bold;">${index + 1}</td>
+          <td style="text-align: center; font-family: monospace;">${log.tanggal}</td>
+          <td style="font-weight: 600; color: #0f766e;">${log.materiSetoran}</td>
+          <td style="color: #475569; font-style: italic;">${log.evaluasiTahsin || '-'}</td>
+          <td style="text-align: center;">
+            <span class="nilai-badge nilai-${log.nilai}">${labelNilai}</span>
+          </td>
+        </tr>
+      `;
+    }).join('');
+
+    const htmlContent = `
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <meta charset="utf-8">
+        <title>Rekap Bulanan - ${selectedSiswa.nama}</title>
+        <style>
+          @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
+          body {
+            font-family: 'Inter', -apple-system, sans-serif;
+            color: #1e293b;
+            padding: 30px;
+            margin: 0;
+            background-color: #fff;
+            line-height: 1.3;
+          }
+          .header {
+            text-align: center;
+            border-bottom: 3px double #0f766e;
+            padding-bottom: 12px;
+            margin-bottom: 20px;
+          }
+          .header h1 {
+            margin: 0;
+            font-size: 20px;
+            color: #0f766e;
+            font-weight: 800;
+            letter-spacing: 0.5px;
+            text-transform: uppercase;
+          }
+          .header h2 {
+            margin: 4px 0 0;
+            font-size: 13px;
+            color: #334155;
+            font-weight: 600;
+          }
+          .header p {
+            margin: 4px 0 0;
+            font-size: 10px;
+            color: #64748b;
+            font-style: italic;
+          }
+          .meta-container {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 15px;
+            margin-bottom: 15px;
+            background-color: #f8fafc;
+            border: 1px solid #e2e8f0;
+            border-radius: 8px;
+            padding: 10px 15px;
+            font-size: 11px;
+          }
+          .meta-item {
+            margin-bottom: 4px;
+          }
+          .meta-item:last-child {
+            margin-bottom: 0;
+          }
+          .meta-item strong {
+            color: #334155;
+            display: inline-block;
+            width: 120px;
+          }
+          
+          .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(5, 1fr);
+            gap: 10px;
+            margin-bottom: 20px;
+          }
+          .stat-box {
+            border: 1px solid #e2e8f0;
+            border-radius: 6px;
+            padding: 8px;
+            text-align: center;
+          }
+          .stat-title {
+            font-size: 9px;
+            font-weight: 700;
+            color: #64748b;
+            text-transform: uppercase;
+          }
+          .stat-value {
+            font-size: 14px;
+            font-weight: 800;
+            margin-top: 2px;
+            color: #0f172a;
+          }
+
+          .report-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 10px;
+            margin-bottom: 25px;
+            font-size: 11px;
+          }
+          .report-table th, .report-table td {
+            border: 1px solid #cbd5e1;
+            padding: 8px 10px;
+            vertical-align: top;
+          }
+          .report-table th {
+            background-color: #f1f5f9;
+            color: #0f766e;
+            font-weight: 700;
+            text-transform: uppercase;
+            font-size: 9px;
+            letter-spacing: 0.5px;
+          }
+          .report-table tr {
+            page-break-inside: avoid;
+          }
+          .report-table tr:nth-child(even) {
+            background-color: #f8fafc;
+          }
+          .nilai-badge {
+            font-weight: 700;
+            font-size: 9px;
+            padding: 2px 6px;
+            border-radius: 4px;
+            text-transform: uppercase;
+            white-space: nowrap;
+            display: inline-block;
+          }
+          .nilai-A { background-color: #d1fae5; color: #065f46; border: 1px solid #a7f3d0; }
+          .nilai-B { background-color: #e0e7ff; color: #3730a3; border: 1px solid #c7d2fe; }
+          .nilai-C { background-color: #fef3c7; color: #92400e; border: 1px solid #fde68a; }
+          .nilai-D { background-color: #fef08a; color: #854d0e; border: 1px solid #fde68a; }
+          .nilai-E { background-color: #fee2e2; color: #991b1b; border: 1px solid #fecaca; }
+          
+          .no-data {
+            font-size: 11px;
+            color: #94a3b8;
+            font-style: italic;
+            text-align: center;
+          }
+          .footer-signature {
+            display: flex;
+            justify-content: space-between;
+            margin-top: 40px;
+            font-size: 11px;
+            page-break-inside: avoid;
+          }
+          .sig-box {
+            width: 180px;
+            text-align: center;
+          }
+          .sig-line {
+            margin-top: 50px;
+            border-top: 1px solid #475569;
+            padding-top: 4px;
+            font-weight: 700;
+            color: #1e293b;
+          }
+          @media print {
+            body {
+              padding: 0;
+            }
+            @page {
+              size: A4;
+              margin: 1cm;
+            }
+          }
+        </style>
+      </head>
+      <body>
+        <div class="header">
+          <h1>MARKAZ MUHIBBIL QUR'AN</h1>
+          <h2>LAPORAN REKAP BULANAN SETORAN TAHFIDZ</h2>
+          <p>Mencetak Generasi Qur'ani yang Berakhlaqul Karimah</p>
+        </div>
+
+        <div class="meta-container">
+          <div>
+            <div class="meta-item"><strong>Nama Santri</strong>: ${selectedSiswa.nama}</div>
+            <div class="meta-item"><strong>No. Induk / Kelas</strong>: ${selectedSiswa.noInduk} / ${selectedSiswa.kelasNama || 'Belum Diatur'}</div>
+            <div class="meta-item"><strong>Halaqoh Qur'an</strong>: ${activeHalaqohObj.nama}</div>
+          </div>
+          <div>
+            <div class="meta-item"><strong>Bulan / Tahun</strong>: ${bulanName} 2026</div>
+            <div class="meta-item"><strong>Musyrif Pengampu</strong>: Ustadz/ah ${userNama}</div>
+            <div class="meta-item"><strong>Total Setoran</strong>: ${studentMonthlyLogs.length} Kali</div>
+          </div>
+        </div>
+
+        <div class="stats-grid">
+          <div class="stat-box" style="background-color: #f0fdf4;">
+            <div class="stat-title" style="color: #166534;">Mumtaz (A)</div>
+            <div class="stat-value" style="color: #166534;">${totalA}</div>
+          </div>
+          <div class="stat-box" style="background-color: #f0fdfa;">
+            <div class="stat-title" style="color: #0f766e;">Jayyid Jidid (B)</div>
+            <div class="stat-value" style="color: #0f766e;">${totalB}</div>
+          </div>
+          <div class="stat-box" style="background-color: #fffbeb;">
+            <div class="stat-title" style="color: #b45309;">Jayyid (C)</div>
+            <div class="stat-value" style="color: #b45309;">${totalC}</div>
+          </div>
+          <div class="stat-box" style="background-color: #fefce8;">
+            <div class="stat-title" style="color: #a16207;">Maqbul (D)</div>
+            <div class="stat-value" style="color: #a16207;">${totalD}</div>
+          </div>
+          <div class="stat-box" style="background-color: #fef2f2;">
+            <div class="stat-title" style="color: #991b1b;">Rosib (E)</div>
+            <div class="stat-value" style="color: #991b1b;">${totalE}</div>
+          </div>
+        </div>
+
+        <table class="report-table">
+          <thead>
+            <tr>
+              <th style="width: 5%; text-align: center;">No</th>
+              <th style="width: 15%; text-align: center;">Tanggal</th>
+              <th style="width: 35%; text-align: left;">Materi Setoran</th>
+              <th style="width: 30%; text-align: left;">Evaluasi / Tahsin</th>
+              <th style="width: 15%; text-align: center;">Nilai</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${studentMonthlyLogs.length === 0 ? `
+              <tr>
+                <td colspan="5" class="no-data">Tidak ada catatan setoran untuk bulan ini.</td>
+              </tr>
+            ` : tableRowsHtml}
+          </tbody>
+        </table>
+
+        <div class="footer-signature">
+          <div class="sig-box">
+            <div>Mengetahui,</div>
+            <div style="font-weight: 700; margin-top: 4px;">Pimpinan Markaz</div>
+            <div class="sig-line">__________________________</div>
+          </div>
+          <div class="sig-box">
+            <div>Sukoharjo, ${bulanName} 2026</div>
+            <div style="font-weight: 700; margin-top: 4px;">Musyrif Pengampu</div>
+            <div class="sig-line">Ustadz/ah ${userNama}</div>
+          </div>
+        </div>
+      </body>
+      </html>
+    `;
+
+    iframeDoc.open();
+    iframeDoc.write(htmlContent);
+    iframeDoc.close();
+
+    setTimeout(() => {
+      iframe.contentWindow?.focus();
+      iframe.contentWindow?.print();
+      
+      setTimeout(() => {
+        document.body.removeChild(iframe);
+      }, 5000);
+    }, 500);
+  };
+
   // Filter students based on active halaqoh
   const activeHalaqohStudents = students.filter(s => s.halaqohId === selectedHalaqohId);
   const activeHalaqohObj = halaqohs.find(h => h.id === selectedHalaqohId);
@@ -913,9 +1220,21 @@ export default function MusyrifDashboard({
 
                   {/* Monthly Chronology Logs table/timeline */}
                   <div className="space-y-4">
-                    <h4 className="text-xs font-bold text-slate-800 uppercase tracking-widest">
-                      Detail Jurnal Bulanan Siswa
-                    </h4>
+                    <div className="flex items-center justify-between border-b border-slate-100 pb-2">
+                      <h4 className="text-xs font-bold text-slate-800 uppercase tracking-widest">
+                        Detail Jurnal Bulanan Siswa
+                      </h4>
+                      <button
+                        id="btn-print-monthly"
+                        onClick={handleCetakPDFBulanan}
+                        disabled={studentMonthlyLogs.length === 0}
+                        className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 disabled:pointer-events-none text-white font-extrabold text-xs rounded-xl transition shadow-xs cursor-pointer"
+                        title="Cetak Rekap Bulanan ke PDF"
+                      >
+                        <Printer className="w-3.5 h-3.5" />
+                        <span>Cetak PDF</span>
+                      </button>
+                    </div>
 
                     {studentMonthlyLogs.length === 0 ? (
                       <div className="p-8 text-center text-xs text-slate-400 border border-dashed border-slate-200 rounded-2xl">
