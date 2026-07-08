@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { 
   Users, BookOpen, UserCheck, ShieldAlert, Settings, LogOut, Plus, Edit2, Trash2, 
-  ChevronRight, Database, Save, CheckCircle, Lock, BookMarked, FileText 
+  ChevronRight, Database, Save, CheckCircle, Lock, BookMarked, FileText, Printer 
 } from 'lucide-react';
 import { db } from '../firebase';
 import { collection, addDoc, updateDoc, deleteDoc, doc } from 'firebase/firestore';
@@ -304,6 +304,302 @@ export default function AdminDashboard({
     }
   };
 
+  const handleCetakPDF = () => {
+    if (!activeHalaqoh) return;
+
+    // Create a hidden iframe
+    const iframe = document.createElement('iframe');
+    iframe.style.position = 'absolute';
+    iframe.style.width = '0px';
+    iframe.style.height = '0px';
+    iframe.style.border = 'none';
+    document.body.appendChild(iframe);
+
+    const iframeDoc = iframe.contentWindow?.document || iframe.contentDocument;
+    if (!iframeDoc) return;
+
+    // Build list of students with journals for printing
+    const studentsHtml = reportStudents.map((siswa, idx) => {
+      const baseHistory = journals.filter(j => j.siswaId === siswa.id);
+      
+      const historyRows = baseHistory.map(log => `
+        <div class="log-item">
+          <div class="log-header">
+            <span>Tanggal: ${log.tanggal}</span>
+            <span class="nilai-badge nilai-${log.nilai}">
+              Nilai: ${
+                log.nilai === 'A' ? 'Mumtaz (A)' : 
+                log.nilai === 'B' ? 'Jayyid Jiddan (B)' : 
+                log.nilai === 'C' ? 'Jayyid (C)' : 
+                log.nilai === 'D' ? 'Maqbul (D)' : 'Rosib (E)'
+              }
+            </span>
+          </div>
+          <div style="margin-top: 4px;"><strong>Materi:</strong> ${log.materiSetoran}</div>
+          <div style="margin-top: 4px; color: #475569;">
+            <strong>Evaluasi/Tahsin:</strong> ${log.evaluasiTahsin || '-'}
+          </div>
+        </div>
+      `).join('');
+
+      return `
+        <div class="student-section">
+          <div class="student-header">
+            <div>
+              <span class="siswa-number">#${idx + 1}</span>
+              <span class="siswa-nama">${siswa.nama}</span>
+              <span class="siswa-induk">(No Induk: ${siswa.noInduk})</span>
+            </div>
+            <div class="siswa-kelas">Kelas: ${siswa.kelasNama || 'Belum Diatur'}</div>
+          </div>
+          <div style="margin-top: 10px;">
+            <h4 style="margin: 0 0 8px 0; font-size: 11px; text-transform: uppercase; color: #475569; letter-spacing: 0.5px;">Histori Jurnal Setoran (${baseHistory.length}):</h4>
+            ${baseHistory.length === 0 ? '<p class="no-data">Belum ada catatan setoran harian.</p>' : historyRows}
+          </div>
+        </div>
+      `;
+    }).join('');
+
+    const formattedDate = new Date().toLocaleDateString('id-ID', {
+      day: 'numeric',
+      month: 'long',
+      year: 'numeric'
+    });
+
+    const htmlContent = `
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <meta charset="utf-8">
+        <title>Laporan Tahfidz - Halaqoh ${activeHalaqoh.nama}</title>
+        <style>
+          @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&display=swap');
+          body {
+            font-family: 'Inter', -apple-system, sans-serif;
+            color: #1e293b;
+            padding: 40px;
+            margin: 0;
+            background-color: #fff;
+            line-height: 1.4;
+          }
+          .header {
+            text-align: center;
+            border-bottom: 3px double #0f766e;
+            padding-bottom: 15px;
+            margin-bottom: 25px;
+          }
+          .header h1 {
+            margin: 0;
+            font-size: 22px;
+            color: #0f766e;
+            font-weight: 800;
+            letter-spacing: 0.5px;
+            text-transform: uppercase;
+          }
+          .header h2 {
+            margin: 5px 0 0;
+            font-size: 15px;
+            color: #334155;
+            font-weight: 600;
+          }
+          .header p {
+            margin: 5px 0 0;
+            font-size: 11px;
+            color: #64748b;
+            font-style: italic;
+          }
+          .meta-container {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 15px;
+            margin-bottom: 25px;
+            background-color: #f8fafc;
+            border: 1px solid #e2e8f0;
+            border-radius: 8px;
+            padding: 12px 18px;
+            font-size: 12px;
+          }
+          .meta-item {
+            margin-bottom: 6px;
+          }
+          .meta-item:last-child {
+            margin-bottom: 0;
+          }
+          .meta-item strong {
+            color: #334155;
+            display: inline-block;
+            width: 130px;
+          }
+          .student-section {
+            page-break-inside: avoid;
+            border: 1px solid #e2e8f0;
+            border-radius: 10px;
+            padding: 15px;
+            margin-bottom: 20px;
+            background-color: #fff;
+          }
+          .student-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-bottom: 1.5px solid #0f766e;
+            padding-bottom: 8px;
+            margin-bottom: 12px;
+          }
+          .siswa-number {
+            font-weight: 700;
+            color: #0f766e;
+            background-color: #f0fdf4;
+            border: 1px solid #bbf7d0;
+            border-radius: 4px;
+            padding: 2px 6px;
+            font-size: 11px;
+            margin-right: 8px;
+          }
+          .siswa-nama {
+            font-size: 14px;
+            font-weight: 700;
+            color: #0f172a;
+            text-transform: uppercase;
+          }
+          .siswa-induk {
+            font-size: 11px;
+            color: #64748b;
+            margin-left: 5px;
+            font-family: monospace;
+          }
+          .siswa-kelas {
+            font-size: 11px;
+            font-weight: 600;
+            background-color: #f1f5f9;
+            color: #334155;
+            border: 1px solid #e2e8f0;
+            padding: 3px 8px;
+            border-radius: 6px;
+          }
+          .log-item {
+            border: 1px solid #e2e8f0;
+            border-radius: 6px;
+            padding: 10px;
+            margin-bottom: 8px;
+            font-size: 11px;
+            background-color: #fafafa;
+          }
+          .log-item:last-child {
+            margin-bottom: 0;
+          }
+          .log-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            font-weight: 700;
+            color: #475569;
+            border-bottom: 1px dashed #cbd5e1;
+            padding-bottom: 4px;
+            margin-bottom: 6px;
+          }
+          .nilai-badge {
+            font-weight: 700;
+            font-size: 10px;
+            padding: 1px 6px;
+            border-radius: 4px;
+            text-transform: uppercase;
+          }
+          .nilai-A { background-color: #d1fae5; color: #065f46; border: 1px solid #a7f3d0; }
+          .nilai-B { background-color: #e0e7ff; color: #3730a3; border: 1px solid #c7d2fe; }
+          .nilai-C { background-color: #fef3c7; color: #92400e; border: 1px solid #fde68a; }
+          .nilai-D { background-color: #fef08a; color: #854d0e; border: 1px solid #fef08a; }
+          .nilai-E { background-color: #fee2e2; color: #991b1b; border: 1px solid #fecaca; }
+          
+          .no-data {
+            font-size: 11px;
+            color: #94a3b8;
+            font-style: italic;
+            margin: 0;
+          }
+          .footer-signature {
+            display: flex;
+            justify-content: space-between;
+            margin-top: 40px;
+            font-size: 12px;
+            page-break-inside: avoid;
+          }
+          .sig-box {
+            width: 200px;
+            text-align: center;
+          }
+          .sig-line {
+            margin-top: 60px;
+            border-top: 1px solid #475569;
+            padding-top: 5px;
+            font-weight: 700;
+            color: #1e293b;
+          }
+          @media print {
+            body {
+              padding: 0;
+            }
+            @page {
+              size: A4;
+              margin: 1.5cm;
+            }
+          }
+        </style>
+      </head>
+      <body>
+        <div class="header">
+          <h1>MARKAZ MUHIBBIL QUR'AN</h1>
+          <h2>LAPORAN PERKEMBANGAN TAHFIDZ SANTRI</h2>
+          <p>Mencetak Generasi Qur'ani yang Berakhlaqul Karimah</p>
+        </div>
+
+        <div class="meta-container">
+          <div>
+            <div class="meta-item"><strong>Halaqoh Qur'an</strong>: ${activeHalaqoh.nama}</div>
+            <div class="meta-item"><strong>Musyrif Pengampu</strong>: ${activeHalaqoh.musyrifNama}</div>
+          </div>
+          <div>
+            <div class="meta-item"><strong>Tanggal Cetak</strong>: ${formattedDate}</div>
+            <div class="meta-item"><strong>Jumlah Santri</strong>: ${reportStudents.length} Anak</div>
+          </div>
+        </div>
+
+        <div>
+          ${studentsHtml}
+        </div>
+
+        <div class="footer-signature">
+          <div class="sig-box">
+            <div>Mengetahui,</div>
+            <div style="font-weight: 700; margin-top: 4px;">Pimpinan Markaz</div>
+            <div class="sig-line">__________________________</div>
+          </div>
+          <div class="sig-box">
+            <div>Sukoharjo, ${formattedDate}</div>
+            <div style="font-weight: 700; margin-top: 4px;">Musyrif Pengampu</div>
+            <div class="sig-line">${activeHalaqoh.musyrifNama}</div>
+          </div>
+        </div>
+      </body>
+      </html>
+    `;
+
+    iframeDoc.open();
+    iframeDoc.write(htmlContent);
+    iframeDoc.close();
+
+    // Small delay to ensure iframe resources/fonts are loaded before printing
+    setTimeout(() => {
+      iframe.contentWindow?.focus();
+      iframe.contentWindow?.print();
+      
+      // Cleanup the iframe after printing is initiated
+      setTimeout(() => {
+        document.body.removeChild(iframe);
+      }, 5000);
+    }, 500);
+  };
+
   // Helper getters to compute totals dynamically
   const getClassStudentCount = (kelasId: string) => {
     return students.filter(s => s.kelasId === kelasId).length;
@@ -332,7 +628,7 @@ export default function AdminDashboard({
                   HALAMAN ADMIN
                 </span>
                 <span className="text-xs text-emerald-300 font-semibold uppercase tracking-wider block">
-                  MIN 6 SUKOHARJO
+                  MARKAZ MUHIBBIL QUR'AN
                 </span>
               </div>
             </div>
@@ -771,6 +1067,16 @@ export default function AdminDashboard({
                   <div className="text-xs text-slate-500 hidden sm:block">
                     Musyrif Pengampu: <strong>{activeHalaqoh.musyrifNama}</strong>
                   </div>
+                )}
+
+                {selectedLaporanHalaqohId && (
+                  <button
+                    onClick={handleCetakPDF}
+                    className="w-full sm:w-auto ml-auto inline-flex items-center justify-center gap-1.5 px-4 py-2 bg-emerald-700 hover:bg-emerald-800 text-white font-bold text-xs rounded-xl transition cursor-pointer shadow-sm hover:shadow"
+                  >
+                    <Printer className="w-4 h-4" />
+                    <span>Cetak PDF</span>
+                  </button>
                 )}
               </div>
 

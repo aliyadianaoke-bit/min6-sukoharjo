@@ -30,9 +30,12 @@ export default function MusyrifDashboard({
   const [isSaving, setIsSaving] = useState(false);
   const [feedback, setFeedback] = useState({ text: '', type: 'success' });
 
+  // Filter halaqohs to only those managed by the current Musyrif
+  const myHalaqohs = halaqohs.filter(h => h.musyrifId === userId);
+
   // Auto-find Musyrif's assigned halaqoh (if any) as initial value
   const assignedHalaqoh = halaqohs.find(h => h.musyrifId === userId);
-  const initialHalaqohId = assignedHalaqoh?.id || halaqohs[0]?.id || '';
+  const initialHalaqohId = assignedHalaqoh?.id || myHalaqohs[0]?.id || '';
 
   // Filter States
   const [selectedHalaqohId, setSelectedHalaqohId] = useState(initialHalaqohId);
@@ -281,9 +284,9 @@ export default function MusyrifDashboard({
                   className="w-full sm:w-72 px-4 py-2 bg-white border border-slate-200 text-xs rounded-xl focus:ring-2 focus:ring-emerald-500 focus:outline-none font-bold text-slate-800"
                 >
                   <option value="">-- Silahkan Pilih Halaqoh --</option>
-                  {halaqohs.map(h => (
+                  {myHalaqohs.map(h => (
                     <option key={h.id} value={h.id}>
-                      {h.nama} {h.musyrifId === userId ? '(Halaqoh Anda)' : `(${h.musyrifNama})`}
+                      {h.nama}
                     </option>
                   ))}
                 </select>
@@ -405,7 +408,7 @@ export default function MusyrifDashboard({
                     className="w-full px-4 py-2 bg-white border border-slate-250 text-xs rounded-xl focus:outline-none font-bold"
                   >
                     <option value="">-- Pilih Halaqoh --</option>
-                    {halaqohs.map(h => (
+                    {myHalaqohs.map(h => (
                       <option key={h.id} value={h.id}>{h.nama}</option>
                     ))}
                   </select>
@@ -519,7 +522,7 @@ export default function MusyrifDashboard({
                     className="w-full px-4 py-2 bg-white border border-slate-200 text-xs rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500"
                   >
                     <option value="">-- Pilih Halaqoh --</option>
-                    {halaqohs.map(h => (
+                    {myHalaqohs.map(h => (
                       <option key={h.id} value={h.id}>{h.nama}</option>
                     ))}
                   </select>
