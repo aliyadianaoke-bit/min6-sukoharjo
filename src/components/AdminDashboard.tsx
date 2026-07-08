@@ -318,45 +318,69 @@ export default function AdminDashboard({
     const iframeDoc = iframe.contentWindow?.document || iframe.contentDocument;
     if (!iframeDoc) return;
 
-    // Build list of students with journals for printing
-    const studentsHtml = reportStudents.map((siswa, idx) => {
-      const baseHistory = journals.filter(j => j.siswaId === siswa.id);
+    // Build compact table rows for printing
+    const tableRowsHtml = reportStudents.map((siswa, idx) => {
+      const baseHistory = journals
+        .filter(j => j.siswaId === siswa.id)
+        .sort((a, b) => b.tanggal.localeCompare(a.tanggal));
       
-      const historyRows = baseHistory.map(log => `
-        <div class="log-item">
-          <div class="log-header">
-            <span>Tanggal: ${log.tanggal}</span>
-            <span class="nilai-badge nilai-${log.nilai}">
-              Nilai: ${
-                log.nilai === 'A' ? 'Mumtaz (A)' : 
-                log.nilai === 'B' ? 'Jayyid Jiddan (B)' : 
-                log.nilai === 'C' ? 'Jayyid (C)' : 
-                log.nilai === 'D' ? 'Maqbul (D)' : 'Rosib (E)'
-              }
-            </span>
+      const totalSetoran = baseHistory.length;
+
+      let setoranTerakhirHtml = '';
+      let riwayatCompactHtml = '';
+
+      if (totalSetoran === 0) {
+        setoranTerakhirHtml = `<span class="no-data">Belum ada catatan setoran.</span>`;
+        riwayatCompactHtml = `<span class="no-data">-</span>`;
+      } else {
+        const latestLog = baseHistory[0];
+        const otherLogs = baseHistory.slice(1, 4); // show next 3 logs
+
+        const labelNilai = latestLog.nilai === 'A' ? 'Mumtaz (A)' : 
+                           latestLog.nilai === 'B' ? 'Jayyid Jiddan (B)' : 
+                           latestLog.nilai === 'C' ? 'Jayyid (C)' : 
+                           latestLog.nilai === 'D' ? 'Maqbul (D)' : 'Rosib (E)';
+
+        setoranTerakhirHtml = `
+          <div class="latest-setoran-box">
+            <div class="latest-meta">
+              <span>Tanggal: <strong>${latestLog.tanggal}</strong></span>
+              <span class="nilai-badge nilai-${latestLog.nilai}">${labelNilai}</span>
+            </div>
+            <div style="margin-top: 3px;"><strong>Materi:</strong> ${latestLog.materiSetoran}</div>
+            ${latestLog.evaluasiTahsin ? `<div style="margin-top: 2px; color: #475569; font-style: italic;">Eva: ${latestLog.evaluasiTahsin}</div>` : ''}
           </div>
-          <div style="margin-top: 4px;"><strong>Materi:</strong> ${log.materiSetoran}</div>
-          <div style="margin-top: 4px; color: #475569;">
-            <strong>Evaluasi/Tahsin:</strong> ${log.evaluasiTahsin || '-'}
-          </div>
-        </div>
-      `).join('');
+        `;
+
+        if (otherLogs.length === 0) {
+          riwayatCompactHtml = `<span class="no-data">Tidak ada riwayat lain.</span>`;
+        } else {
+          const items = otherLogs.map(log => `
+            <li>
+              <strong>${log.tanggal}</strong>: ${log.materiSetoran} 
+              <span class="nilai-badge-tiny nilai-${log.nilai}">${log.nilai}</span>
+            </li>
+          `).join('');
+          riwayatCompactHtml = `<ul class="history-compact-list">${items}</ul>`;
+        }
+      }
 
       return `
-        <div class="student-section">
-          <div class="student-header">
-            <div>
-              <span class="siswa-number">#${idx + 1}</span>
-              <span class="siswa-nama">${siswa.nama}</span>
-              <span class="siswa-induk">(No Induk: ${siswa.noInduk})</span>
+        <tr>
+          <td style="text-align: center; font-weight: bold; vertical-align: middle;">${idx + 1}</td>
+          <td>
+            <div class="siswa-info">
+              <span class="siswa-name-cell">${siswa.nama}</span>
+              <span class="siswa-sub-cell">No. Induk: ${siswa.noInduk}</span>
+              <span class="siswa-sub-cell">Kelas: ${siswa.kelasNama || 'Belum Diatur'}</span>
             </div>
-            <div class="siswa-kelas">Kelas: ${siswa.kelasNama || 'Belum Diatur'}</div>
-          </div>
-          <div style="margin-top: 10px;">
-            <h4 style="margin: 0 0 8px 0; font-size: 11px; text-transform: uppercase; color: #475569; letter-spacing: 0.5px;">Histori Jurnal Setoran (${baseHistory.length}):</h4>
-            ${baseHistory.length === 0 ? '<p class="no-data">Belum ada catatan setoran harian.</p>' : historyRows}
-          </div>
-        </div>
+          </td>
+          <td style="text-align: center; vertical-align: middle;">
+            <span class="badge-total">${totalSetoran} Setoran</span>
+          </td>
+          <td>${setoranTerakhirHtml}</td>
+          <td>${riwayatCompactHtml}</td>
+        </tr>
       `;
     }).join('');
 
@@ -373,38 +397,38 @@ export default function AdminDashboard({
         <meta charset="utf-8">
         <title>Laporan Tahfidz - Halaqoh ${activeHalaqoh.nama}</title>
         <style>
-          @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&display=swap');
+          @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
           body {
             font-family: 'Inter', -apple-system, sans-serif;
             color: #1e293b;
-            padding: 40px;
+            padding: 30px;
             margin: 0;
             background-color: #fff;
-            line-height: 1.4;
+            line-height: 1.3;
           }
           .header {
             text-align: center;
             border-bottom: 3px double #0f766e;
-            padding-bottom: 15px;
-            margin-bottom: 25px;
+            padding-bottom: 12px;
+            margin-bottom: 20px;
           }
           .header h1 {
             margin: 0;
-            font-size: 22px;
+            font-size: 20px;
             color: #0f766e;
             font-weight: 800;
             letter-spacing: 0.5px;
             text-transform: uppercase;
           }
           .header h2 {
-            margin: 5px 0 0;
-            font-size: 15px;
+            margin: 4px 0 0;
+            font-size: 13px;
             color: #334155;
             font-weight: 600;
           }
           .header p {
-            margin: 5px 0 0;
-            font-size: 11px;
+            margin: 4px 0 0;
+            font-size: 10px;
             color: #64748b;
             font-style: italic;
           }
@@ -412,15 +436,15 @@ export default function AdminDashboard({
             display: grid;
             grid-template-columns: 1fr 1fr;
             gap: 15px;
-            margin-bottom: 25px;
+            margin-bottom: 20px;
             background-color: #f8fafc;
             border: 1px solid #e2e8f0;
             border-radius: 8px;
-            padding: 12px 18px;
-            font-size: 12px;
+            padding: 10px 15px;
+            font-size: 11px;
           }
           .meta-item {
-            margin-bottom: 6px;
+            margin-bottom: 4px;
           }
           .meta-item:last-child {
             margin-bottom: 0;
@@ -428,91 +452,112 @@ export default function AdminDashboard({
           .meta-item strong {
             color: #334155;
             display: inline-block;
-            width: 130px;
+            width: 120px;
           }
-          .student-section {
-            page-break-inside: avoid;
-            border: 1px solid #e2e8f0;
-            border-radius: 10px;
-            padding: 15px;
-            margin-bottom: 20px;
-            background-color: #fff;
-          }
-          .student-header {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            border-bottom: 1.5px solid #0f766e;
-            padding-bottom: 8px;
-            margin-bottom: 12px;
-          }
-          .siswa-number {
-            font-weight: 700;
-            color: #0f766e;
-            background-color: #f0fdf4;
-            border: 1px solid #bbf7d0;
-            border-radius: 4px;
-            padding: 2px 6px;
+          .report-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 10px;
+            margin-bottom: 25px;
             font-size: 11px;
-            margin-right: 8px;
           }
-          .siswa-nama {
-            font-size: 14px;
+          .report-table th, .report-table td {
+            border: 1px solid #cbd5e1;
+            padding: 8px 10px;
+            vertical-align: top;
+          }
+          .report-table th {
+            background-color: #f1f5f9;
+            color: #0f766e;
+            font-weight: 700;
+            text-transform: uppercase;
+            font-size: 9px;
+            letter-spacing: 0.5px;
+          }
+          .report-table tr {
+            page-break-inside: avoid;
+          }
+          .report-table tr:nth-child(even) {
+            background-color: #f8fafc;
+          }
+          .siswa-info {
+            display: flex;
+            flex-direction: column;
+            gap: 2px;
+          }
+          .siswa-name-cell {
             font-weight: 700;
             color: #0f172a;
             text-transform: uppercase;
-          }
-          .siswa-induk {
             font-size: 11px;
+          }
+          .siswa-sub-cell {
+            font-size: 9px;
             color: #64748b;
-            margin-left: 5px;
-            font-family: monospace;
           }
-          .siswa-kelas {
-            font-size: 11px;
-            font-weight: 600;
-            background-color: #f1f5f9;
-            color: #334155;
-            border: 1px solid #e2e8f0;
-            padding: 3px 8px;
-            border-radius: 6px;
+          .badge-total {
+            display: inline-block;
+            font-weight: 700;
+            background-color: #f0fdf4;
+            color: #166534;
+            border: 1px solid #bbf7d0;
+            border-radius: 4px;
+            padding: 2px 6px;
+            font-size: 9px;
+            white-space: nowrap;
           }
-          .log-item {
-            border: 1px solid #e2e8f0;
-            border-radius: 6px;
-            padding: 10px;
-            margin-bottom: 8px;
-            font-size: 11px;
-            background-color: #fafafa;
+          .latest-setoran-box {
+            display: flex;
+            flex-direction: column;
+            gap: 2px;
+            font-size: 10px;
           }
-          .log-item:last-child {
-            margin-bottom: 0;
-          }
-          .log-header {
+          .latest-meta {
             display: flex;
             justify-content: space-between;
             align-items: center;
-            font-weight: 700;
-            color: #475569;
-            border-bottom: 1px dashed #cbd5e1;
-            padding-bottom: 4px;
-            margin-bottom: 6px;
+            border-bottom: 1px dashed #e2e8f0;
+            padding-bottom: 2px;
+            margin-bottom: 2px;
+            font-size: 9px;
           }
           .nilai-badge {
             font-weight: 700;
-            font-size: 10px;
-            padding: 1px 6px;
+            font-size: 8px;
+            padding: 1px 4px;
             border-radius: 4px;
             text-transform: uppercase;
+            white-space: nowrap;
+          }
+          .nilai-badge-tiny {
+            font-weight: 700;
+            font-size: 8px;
+            padding: 0px 3px;
+            border-radius: 3px;
+            text-transform: uppercase;
+            display: inline-block;
           }
           .nilai-A { background-color: #d1fae5; color: #065f46; border: 1px solid #a7f3d0; }
           .nilai-B { background-color: #e0e7ff; color: #3730a3; border: 1px solid #c7d2fe; }
           .nilai-C { background-color: #fef3c7; color: #92400e; border: 1px solid #fde68a; }
-          .nilai-D { background-color: #fef08a; color: #854d0e; border: 1px solid #fef08a; }
+          .nilai-D { background-color: #fef08a; color: #854d0e; border: 1px solid #fde68a; }
           .nilai-E { background-color: #fee2e2; color: #991b1b; border: 1px solid #fecaca; }
           
+          .history-compact-list {
+            margin: 0;
+            padding-left: 12px;
+            font-size: 9px;
+            color: #475569;
+          }
+          .history-compact-list li {
+            margin-bottom: 2px;
+            line-height: 1.2;
+          }
+          .history-compact-list li:last-child {
+            margin-bottom: 0;
+          }
           .no-data {
-            font-size: 11px;
+            font-size: 9px;
             color: #94a3b8;
             font-style: italic;
             margin: 0;
@@ -520,18 +565,18 @@ export default function AdminDashboard({
           .footer-signature {
             display: flex;
             justify-content: space-between;
-            margin-top: 40px;
-            font-size: 12px;
+            margin-top: 30px;
+            font-size: 11px;
             page-break-inside: avoid;
           }
           .sig-box {
-            width: 200px;
+            width: 180px;
             text-align: center;
           }
           .sig-line {
-            margin-top: 60px;
+            margin-top: 50px;
             border-top: 1px solid #475569;
-            padding-top: 5px;
+            padding-top: 4px;
             font-weight: 700;
             color: #1e293b;
           }
@@ -541,7 +586,7 @@ export default function AdminDashboard({
             }
             @page {
               size: A4;
-              margin: 1.5cm;
+              margin: 1cm;
             }
           }
         </style>
@@ -564,9 +609,20 @@ export default function AdminDashboard({
           </div>
         </div>
 
-        <div>
-          ${studentsHtml}
-        </div>
+        <table class="report-table">
+          <thead>
+            <tr>
+              <th style="width: 5%; text-align: center;">No</th>
+              <th style="width: 25%; text-align: left;">Nama Santri</th>
+              <th style="width: 12%; text-align: center;">Total Setoran</th>
+              <th style="width: 33%; text-align: left;">Setoran Terakhir (Utama)</th>
+              <th style="width: 25%; text-align: left;">Riwayat Sebelumnya (Ringkas)</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${tableRowsHtml}
+          </tbody>
+        </table>
 
         <div class="footer-signature">
           <div class="sig-box">
