@@ -30,11 +30,11 @@ export default function MusyrifDashboard({
   const [isSaving, setIsSaving] = useState(false);
   const [feedback, setFeedback] = useState({ text: '', type: 'success' });
 
-  // Filter halaqohs to only those managed by the current Musyrif
-  const myHalaqohs = halaqohs.filter(h => h.musyrifId === userId);
+  // Filter halaqohs to only those managed by the current Musyrif (supports multiple Musyrifs)
+  const myHalaqohs = halaqohs.filter(h => h.musyrifId === userId || (h.musyrifIds && h.musyrifIds.includes(userId)));
 
   // Auto-find Musyrif's assigned halaqoh (if any) as initial value
-  const assignedHalaqoh = halaqohs.find(h => h.musyrifId === userId);
+  const assignedHalaqoh = halaqohs.find(h => h.musyrifId === userId || (h.musyrifIds && h.musyrifIds.includes(userId)));
   const initialHalaqohId = assignedHalaqoh?.id || myHalaqohs[0]?.id || '';
 
   // Filter States

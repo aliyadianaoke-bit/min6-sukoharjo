@@ -8,6 +8,7 @@ export interface Halaqoh {
   nama: string;
   musyrifId: string; // Reference to Musyrif (or can be empty / "Belum Ditentukan")
   musyrifNama: string;
+  musyrifIds?: string[]; // Multiple Musyris supported
 }
 
 export interface Siswa {

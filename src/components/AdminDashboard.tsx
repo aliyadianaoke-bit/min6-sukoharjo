@@ -43,6 +43,13 @@ export default function AdminDashboard({
   // 2. Halaqoh Form
   const [halaqohNama, setHalaqohNama] = useState('');
   const [halaqohMusyrifId, setHalaqohMusyrifId] = useState('');
+  const [selectedMusyrifIds, setSelectedMusyrifIds] = useState<string[]>([]);
+
+  const handleToggleMusyrif = (mId: string) => {
+    setSelectedMusyrifIds(prev => 
+      prev.includes(mId) ? prev.filter(id => id !== mId) : [...prev, mId]
+    );
+  };
 
   // 3. Siswa Form
   const [siswaNoInduk, setSiswaNoInduk] = useState('');
@@ -78,6 +85,7 @@ export default function AdminDashboard({
     setKelasNama('');
     setHalaqohNama('');
     setHalaqohMusyrifId('');
+    setSelectedMusyrifIds([]);
     setSiswaNoInduk('');
     setSiswaNama('');
     setSiswaKelasId('');
@@ -126,34 +134,59 @@ export default function AdminDashboard({
     if (!halaqohNama.trim()) return;
     setIsSaving(true);
     try {
-      // Find musyrif name based on selected ID
-      const chosenMusyrif = musyrifs.find(m => m.id === halaqohMusyrifId);
-      const mName = chosenMusyrif ? chosenMusyrif.nama : 'Belum Ditentukan';
-      const mId = chosenMusyrif ? halaqohMusyrifId : '';
+      const chosenMusyrifs = musyrifs.filter(m => selectedMusyrifIds.includes(m.id));
+      const mNames = chosenMusyrifs.map(m => m.nama).join(', ');
+      const truncatedNames = mNames.length > 150 ? mNames.slice(0, 147) + '...' : mNames;
+
+      // For backward compatibility and firestore.rules:
+      const mId = chosenMusyrifs.length > 0 ? chosenMusyrifs[0].id : '';
+      const mNama = chosenMusyrifs.length > 0 ? truncatedNames : 'Belum Ditentukan';
+
+      const payload = {
+        nama: halaqohNama.trim(),
+        musyrifId: mId,
+        musyrifNama: mNama,
+        musyrifIds: selectedMusyrifIds
+      };
 
       if (modalType === 'add') {
-        await addDoc(collection(db, 'halaqoh'), {
-          nama: halaqohNama.trim(),
-          musyrifId: mId,
-          musyrifNama: mName
-        });
+        const docRef = await addDoc(collection(db, 'halaqoh'), payload);
+
+        // Cascade update assigned Musyrifs
+        for (const mId of selectedMusyrifIds) {
+          await updateDoc(doc(db, 'musyrif', mId), {
+            halaqohId: docRef.id,
+            halaqohNama: halaqohNama.trim()
+          });
+        }
+
         showFeedback('Berhasil menambah halaqoh baru!');
       } else if (modalType === 'edit' && editId) {
-        await updateDoc(doc(db, 'halaqoh', editId), {
-          nama: halaqohNama.trim(),
-          musyrifId: mId,
-          musyrifNama: mName
-        });
+        await updateDoc(doc(db, 'halaqoh', editId), payload);
 
-        // Cascade updates: students and musyrif referencing this halaqoh
+        // Cascade updates: students referencing this halaqoh
         const associatedStudents = students.filter(s => s.halaqohId === editId);
         for (const s of associatedStudents) {
           await updateDoc(doc(db, 'students', s.id), { halaqohNama: halaqohNama.trim() });
         }
 
-        const associatedMusyrif = musyrifs.filter(m => m.halaqohId === editId);
-        for (const m of associatedMusyrif) {
-          await updateDoc(doc(db, 'musyrif', m.id), { halaqohNama: halaqohNama.trim() });
+        // Cascade updates: currently assigned Musyrifs
+        for (const mId of selectedMusyrifIds) {
+          await updateDoc(doc(db, 'musyrif', mId), {
+            halaqohId: editId,
+            halaqohNama: halaqohNama.trim()
+          });
+        }
+
+        // Cascade updates: previously assigned Musyrifs who are no longer in selectedMusyrifIds
+        const previouslyAssignedMusyrif = musyrifs.filter(m => m.halaqohId === editId);
+        for (const m of previouslyAssignedMusyrif) {
+          if (!selectedMusyrifIds.includes(m.id)) {
+            await updateDoc(doc(db, 'musyrif', m.id), {
+              halaqohId: '',
+              halaqohNama: 'Belum Ditentukan'
+            });
+          }
         }
 
         showFeedback('Berhasil memperbarui halaqoh!');
@@ -232,21 +265,73 @@ export default function AdminDashboard({
 
         // If a halaqoh was chosen, link it with this musyrif automatically
         if (musyrifHalaqohId) {
-          await updateDoc(doc(db, 'halaqoh', musyrifHalaqohId), {
-            musyrifId: docRef.id,
-            musyrifNama: musyrifNama.trim()
-          });
+          const targetHq = halaqohs.find(h => h.id === musyrifHalaqohId);
+          if (targetHq) {
+            const currentIds = targetHq.musyrifIds || (targetHq.musyrifId ? [targetHq.musyrifId] : []);
+            if (!currentIds.includes(docRef.id)) {
+              const newIds = [...currentIds, docRef.id];
+              const assignedMusyrifs = [
+                ...musyrifs.filter(m => newIds.includes(m.id)),
+                { id: docRef.id, nama: musyrifNama.trim() }
+              ];
+              const mNames = assignedMusyrifs.map(m => m.nama).join(', ');
+              const truncatedNames = mNames.length > 150 ? mNames.slice(0, 147) + '...' : mNames;
+
+              await updateDoc(doc(db, 'halaqoh', musyrifHalaqohId), {
+                musyrifId: newIds[0] || '',
+                musyrifNama: truncatedNames,
+                musyrifIds: newIds
+              });
+            }
+          }
         }
         showFeedback('Berhasil menambah pengajar baru!');
       } else if (modalType === 'edit' && editId) {
         await updateDoc(doc(db, 'musyrif', editId), payload);
 
+        // Find old assigned halaqoh
+        const oldMusyrif = musyrifs.find(m => m.id === editId);
+
         // Link with selected halaqoh
         if (musyrifHalaqohId) {
-          await updateDoc(doc(db, 'halaqoh', musyrifHalaqohId), {
-            musyrifId: editId,
-            musyrifNama: musyrifNama.trim()
-          });
+          const targetHq = halaqohs.find(h => h.id === musyrifHalaqohId);
+          if (targetHq) {
+            const currentIds = targetHq.musyrifIds || (targetHq.musyrifId ? [targetHq.musyrifId] : []);
+            if (!currentIds.includes(editId)) {
+              const newIds = [...currentIds, editId];
+              const assignedMusyrifs = [
+                ...musyrifs.filter(m => newIds.includes(m.id) && m.id !== editId),
+                { id: editId, nama: musyrifNama.trim() }
+              ];
+              const mNames = assignedMusyrifs.map(m => m.nama).join(', ');
+              const truncatedNames = mNames.length > 150 ? mNames.slice(0, 147) + '...' : mNames;
+
+              await updateDoc(doc(db, 'halaqoh', musyrifHalaqohId), {
+                musyrifId: newIds[0] || '',
+                musyrifNama: truncatedNames,
+                musyrifIds: newIds
+              });
+            }
+          }
+        }
+
+        // Remove from old halaqoh if it changed
+        if (oldMusyrif && oldMusyrif.halaqohId && oldMusyrif.halaqohId !== musyrifHalaqohId) {
+          const oldHqId = oldMusyrif.halaqohId;
+          const oldHq = halaqohs.find(h => h.id === oldHqId);
+          if (oldHq) {
+            const currentIds = oldHq.musyrifIds || (oldHq.musyrifId ? [oldHq.musyrifId] : []);
+            const newIds = currentIds.filter(id => id !== editId);
+            const assignedMusyrifs = musyrifs.filter(m => newIds.includes(m.id) && m.id !== editId);
+            const mNames = assignedMusyrifs.map(m => m.nama).join(', ');
+            const truncatedNames = mNames.length > 150 ? mNames.slice(0, 147) + '...' : mNames;
+
+            await updateDoc(doc(db, 'halaqoh', oldHqId), {
+              musyrifId: newIds[0] || '',
+              musyrifNama: newIds.length > 0 ? truncatedNames : 'Belum Ditentukan',
+              musyrifIds: newIds
+            });
+          }
         }
         showFeedback('Berhasil memperbarui data pengajar!');
       }
@@ -1030,6 +1115,7 @@ export default function AdminDashboard({
                     setModalType('add');
                     setHalaqohNama('');
                     setHalaqohMusyrifId('');
+                    setSelectedMusyrifIds([]);
                   }}
                   className="inline-flex items-center gap-1.5 px-3 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-xl transition cursor-pointer"
                 >
@@ -1073,6 +1159,13 @@ export default function AdminDashboard({
                                   setEditId(hp.id);
                                   setHalaqohNama(hp.nama);
                                   setHalaqohMusyrifId(hp.musyrifId);
+                                  if (hp.musyrifIds && Array.isArray(hp.musyrifIds)) {
+                                    setSelectedMusyrifIds(hp.musyrifIds);
+                                  } else if (hp.musyrifId) {
+                                    setSelectedMusyrifIds([hp.musyrifId]);
+                                  } else {
+                                    setSelectedMusyrifIds([]);
+                                  }
                                 }}
                                 className="p-1.5 bg-slate-100 text-slate-600 hover:bg-slate-200 rounded-lg cursor-pointer transition"
                               >
@@ -1361,18 +1454,28 @@ export default function AdminDashboard({
                     />
                   </div>
 
-                  <div className="space-y-1">
-                    <label className="text-xs font-bold text-slate-600 block">Musyrif Pengampu (Opsional)</label>
-                    <select
-                      value={halaqohMusyrifId}
-                      onChange={(e) => setHalaqohMusyrifId(e.target.value)}
-                      className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs focus:ring-2 focus:ring-emerald-500 focus:bg-white focus:outline-none transition"
-                    >
-                      <option value="">-- Pilih Musyrif --</option>
-                      {musyrifs.map(m => (
-                        <option key={m.id} value={m.id}>{m.nama} (username: {m.username})</option>
-                      ))}
-                    </select>
+                  <div className="space-y-1.5">
+                    <label className="text-xs font-bold text-slate-600 block">Musyrif Pengampu (Bisa diampu oleh lebih dari 1)</label>
+                    <div className="border border-slate-200 rounded-xl p-3 bg-slate-50 max-h-48 overflow-y-auto space-y-1.5">
+                      {musyrifs.length === 0 ? (
+                        <p className="text-xs text-slate-400 italic">Belum ada pengajar terdaftar</p>
+                      ) : (
+                        musyrifs.map(m => {
+                          const isChecked = selectedMusyrifIds.includes(m.id);
+                          return (
+                            <label key={m.id} className="flex items-center gap-2 px-2 py-1.5 hover:bg-white rounded-lg cursor-pointer transition text-xs font-medium text-slate-700">
+                              <input
+                                type="checkbox"
+                                checked={isChecked}
+                                onChange={() => handleToggleMusyrif(m.id)}
+                                className="rounded text-emerald-600 focus:ring-emerald-500 w-4 h-4 cursor-pointer"
+                              />
+                              <span>{m.nama} <span className="text-[10px] text-slate-400 font-mono">(@{m.username})</span></span>
+                            </label>
+                          );
+                        })
+                      )}
+                    </div>
                   </div>
 
                   <button
