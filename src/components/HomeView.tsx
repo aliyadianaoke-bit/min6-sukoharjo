@@ -362,15 +362,7 @@ export default function HomeView({ onLoginSuccess, adminPass, musyrifList }: Hom
                 </button>
               </form>
 
-              {/* Demo accounts reminder helper box */}
-              <div className="bg-slate-50 p-4 rounded-xl border border-dashed border-slate-200 text-xs text-slate-600 space-y-1">
-                <div className="flex items-center gap-1 font-bold text-slate-700">
-                  <HelpCircle className="w-3.5 h-3.5 text-emerald-600" />
-                  <span>Petunjuk Akun Bawaan (Demo):</span>
-                </div>
-                <p>• <strong>Musyrif:</strong> username: <code className="bg-emerald-100 text-emerald-800 px-1 rounded">ahmad</code>, password: <code className="bg-emerald-100 text-emerald-800 px-1 rounded">password123</code></p>
-                <p>• <strong>Admin:</strong> password admin: <code className="bg-emerald-100 text-emerald-800 px-1 rounded">admin123</code></p>
-              </div>
+
 
             </div>
           </div>
