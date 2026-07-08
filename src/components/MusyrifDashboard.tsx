@@ -1,7 +1,8 @@
 import React, { useState } from 'react';
 import { 
   Calendar, CheckCircle, Award, BookMarked, FileText, BarChart2, Plus, Edit2, 
-  Trash2, LogOut, ChevronRight, Filter, AlertCircle, Sparkles, Smile, Info, BookOpen 
+  Trash2, LogOut, ChevronRight, Filter, AlertCircle, Sparkles, Smile, Info, BookOpen,
+  Printer, Share2
 } from 'lucide-react';
 import { db } from '../firebase';
 import { collection, addDoc, updateDoc, deleteDoc, doc } from 'firebase/firestore';
@@ -121,6 +122,295 @@ export default function MusyrifDashboard({
     } catch (err: any) {
       showFeedback('Gagal menghapus: ' + err.message, 'danger');
     }
+  };
+
+  const handleShareWA = () => {
+    if (!selectedHalaqohId || !activeHalaqohObj) return;
+
+    const formattedDate = new Date(rekapHariTanggal).toLocaleDateString('id-ID', {
+      day: 'numeric',
+      month: 'long',
+      year: 'numeric'
+    });
+
+    let text = `*REKAP HARIAN HALAQOH TAHFIDZ*\n`;
+    text += `*Markaz Muhibbil Qur'an*\n\n`;
+    text += `📖 *Halaqoh*: ${activeHalaqohObj.nama}\n`;
+    text += `👤 *Musyrif/ah*: Ustadz/ah ${userNama}\n`;
+    text += `📅 *Tanggal*: ${formattedDate}\n`;
+    text += `📊 *Total Setoran*: ${dailyRecapLogs.length} Santri\n\n`;
+    text += `===================================\n\n`;
+
+    if (dailyRecapLogs.length === 0) {
+      text += `_Belum ada setoran yang tercatat hari ini._\n`;
+    } else {
+      dailyRecapLogs.forEach((log, idx) => {
+        const labelNilai = log.nilai === 'A' ? 'Mumtaz (A)' : 
+                           log.nilai === 'B' ? 'Jayyid Jidid (B)' : 
+                           log.nilai === 'C' ? 'Jayyid (C)' : 
+                           log.nilai === 'D' ? 'Maqbul (D)' : 'Rosib (E)';
+
+        text += `*${idx + 1}. ${log.siswaNama}* (No Induk: ${log.noInduk})\n`;
+        text += `• Materi: _${log.materiSetoran}_\n`;
+        text += `• Evaluasi: _${log.evaluasiTahsin || '-'}_\n`;
+        text += `• Nilai: *${labelNilai}*\n\n`;
+      });
+    }
+
+    text += `===================================\n`;
+    text += `_Mencetak Generasi Qur'ani yang Berakhlaqul Karimah_`;
+
+    const waUrl = `https://api.whatsapp.com/send?text=${encodeURIComponent(text)}`;
+    window.open(waUrl, '_blank');
+  };
+
+  const handleCetakPDF = () => {
+    if (!selectedHalaqohId || !activeHalaqohObj) return;
+
+    const iframe = document.createElement('iframe');
+    iframe.style.position = 'absolute';
+    iframe.style.width = '0px';
+    iframe.style.height = '0px';
+    iframe.style.border = 'none';
+    document.body.appendChild(iframe);
+
+    const iframeDoc = iframe.contentWindow?.document || iframe.contentDocument;
+    if (!iframeDoc) return;
+
+    const formattedDate = new Date(rekapHariTanggal).toLocaleDateString('id-ID', {
+      day: 'numeric',
+      month: 'long',
+      year: 'numeric'
+    });
+
+    const tableRowsHtml = dailyRecapLogs.map((log, index) => {
+      const labelNilai = log.nilai === 'A' ? 'Mumtaz (A)' : 
+                         log.nilai === 'B' ? 'Jayyid Jidid (B)' : 
+                         log.nilai === 'C' ? 'Jayyid (C)' : 
+                         log.nilai === 'D' ? 'Maqbul (D)' : 'Rosib (E)';
+      return `
+        <tr>
+          <td style="text-align: center; font-weight: bold;">${index + 1}</td>
+          <td style="font-family: monospace; text-align: center;">${log.noInduk}</td>
+          <td>
+            <div style="font-weight: 700; text-transform: uppercase;">${log.siswaNama}</div>
+            <div style="font-size: 9px; color: #64748b;">Kelas: ${log.kelasNama || 'Belum Diatur'}</div>
+          </td>
+          <td style="font-weight: 600; color: #0f766e;">${log.materiSetoran}</td>
+          <td style="color: #475569; font-style: italic;">${log.evaluasiTahsin || '-'}</td>
+          <td style="text-align: center;">
+            <span class="nilai-badge nilai-${log.nilai}">${labelNilai}</span>
+          </td>
+        </tr>
+      `;
+    }).join('');
+
+    const htmlContent = `
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <meta charset="utf-8">
+        <title>Rekap Harian - ${activeHalaqohObj.nama}</title>
+        <style>
+          @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
+          body {
+            font-family: 'Inter', -apple-system, sans-serif;
+            color: #1e293b;
+            padding: 30px;
+            margin: 0;
+            background-color: #fff;
+            line-height: 1.3;
+          }
+          .header {
+            text-align: center;
+            border-bottom: 3px double #0f766e;
+            padding-bottom: 12px;
+            margin-bottom: 20px;
+          }
+          .header h1 {
+            margin: 0;
+            font-size: 20px;
+            color: #0f766e;
+            font-weight: 800;
+            letter-spacing: 0.5px;
+            text-transform: uppercase;
+          }
+          .header h2 {
+            margin: 4px 0 0;
+            font-size: 13px;
+            color: #334155;
+            font-weight: 600;
+          }
+          .header p {
+            margin: 4px 0 0;
+            font-size: 10px;
+            color: #64748b;
+            font-style: italic;
+          }
+          .meta-container {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 15px;
+            margin-bottom: 20px;
+            background-color: #f8fafc;
+            border: 1px solid #e2e8f0;
+            border-radius: 8px;
+            padding: 10px 15px;
+            font-size: 11px;
+          }
+          .meta-item {
+            margin-bottom: 4px;
+          }
+          .meta-item:last-child {
+            margin-bottom: 0;
+          }
+          .meta-item strong {
+            color: #334155;
+            display: inline-block;
+            width: 120px;
+          }
+          .report-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 10px;
+            margin-bottom: 25px;
+            font-size: 11px;
+          }
+          .report-table th, .report-table td {
+            border: 1px solid #cbd5e1;
+            padding: 8px 10px;
+            vertical-align: top;
+          }
+          .report-table th {
+            background-color: #f1f5f9;
+            color: #0f766e;
+            font-weight: 700;
+            text-transform: uppercase;
+            font-size: 9px;
+            letter-spacing: 0.5px;
+          }
+          .report-table tr {
+            page-break-inside: avoid;
+          }
+          .report-table tr:nth-child(even) {
+            background-color: #f8fafc;
+          }
+          .nilai-badge {
+            font-weight: 700;
+            font-size: 9px;
+            padding: 2px 6px;
+            border-radius: 4px;
+            text-transform: uppercase;
+            white-space: nowrap;
+            display: inline-block;
+          }
+          .nilai-A { background-color: #d1fae5; color: #065f46; border: 1px solid #a7f3d0; }
+          .nilai-B { background-color: #e0e7ff; color: #3730a3; border: 1px solid #c7d2fe; }
+          .nilai-C { background-color: #fef3c7; color: #92400e; border: 1px solid #fde68a; }
+          .nilai-D { background-color: #fef08a; color: #854d0e; border: 1px solid #fde68a; }
+          .nilai-E { background-color: #fee2e2; color: #991b1b; border: 1px solid #fecaca; }
+          
+          .no-data {
+            font-size: 11px;
+            color: #94a3b8;
+            font-style: italic;
+            text-align: center;
+          }
+          .footer-signature {
+            display: flex;
+            justify-content: space-between;
+            margin-top: 40px;
+            font-size: 11px;
+            page-break-inside: avoid;
+          }
+          .sig-box {
+            width: 180px;
+            text-align: center;
+          }
+          .sig-line {
+            margin-top: 50px;
+            border-top: 1px solid #475569;
+            padding-top: 4px;
+            font-weight: 700;
+            color: #1e293b;
+          }
+          @media print {
+            body {
+              padding: 0;
+            }
+            @page {
+              size: A4;
+              margin: 1cm;
+            }
+          }
+        </style>
+      </head>
+      <body>
+        <div class="header">
+          <h1>MARKAZ MUHIBBIL QUR'AN</h1>
+          <h2>LAPORAN REKAP HARIAN SETORAN TAHFIDZ</h2>
+          <p>Mencetak Generasi Qur'ani yang Berakhlaqul Karimah</p>
+        </div>
+
+        <div class="meta-container">
+          <div>
+            <div class="meta-item"><strong>Halaqoh Qur'an</strong>: ${activeHalaqohObj.nama}</div>
+            <div class="meta-item"><strong>Musyrif Pengampu</strong>: Ustadz/ah ${userNama}</div>
+          </div>
+          <div>
+            <div class="meta-item"><strong>Tanggal Laporan</strong>: ${formattedDate}</div>
+            <div class="meta-item"><strong>Total Setoran</strong>: ${dailyRecapLogs.length} Anak</div>
+          </div>
+        </div>
+
+        <table class="report-table">
+          <thead>
+            <tr>
+              <th style="width: 5%; text-align: center;">No</th>
+              <th style="width: 12%; text-align: center;">No Induk</th>
+              <th style="width: 25%; text-align: left;">Nama Santri</th>
+              <th style="width: 25%; text-align: left;">Materi Setoran</th>
+              <th style="width: 21%; text-align: left;">Evaluasi / Tahsin</th>
+              <th style="width: 12%; text-align: center;">Nilai</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${dailyRecapLogs.length === 0 ? `
+              <tr>
+                <td colspan="6" class="no-data">Belum ada catatan setoran harian untuk tanggal ini.</td>
+              </tr>
+            ` : tableRowsHtml}
+          </tbody>
+        </table>
+
+        <div class="footer-signature">
+          <div class="sig-box">
+            <div>Mengetahui,</div>
+            <div style="font-weight: 700; margin-top: 4px;">Pimpinan Markaz</div>
+            <div class="sig-line">__________________________</div>
+          </div>
+          <div class="sig-box">
+            <div>Sukoharjo, ${formattedDate}</div>
+            <div style="font-weight: 700; margin-top: 4px;">Musyrif Pengampu</div>
+            <div class="sig-line">Ustadz/ah ${userNama}</div>
+          </div>
+        </div>
+      </body>
+      </html>
+    `;
+
+    iframeDoc.open();
+    iframeDoc.write(htmlContent);
+    iframeDoc.close();
+
+    setTimeout(() => {
+      iframe.contentWindow?.focus();
+      iframe.contentWindow?.print();
+      
+      setTimeout(() => {
+        document.body.removeChild(iframe);
+      }, 5000);
+    }, 500);
   };
 
   // Filter students based on active halaqoh
@@ -440,8 +730,32 @@ export default function MusyrifDashboard({
                         Halaqoh: <strong>{activeHalaqohObj?.nama}</strong> | Tanggal: <strong>{rekapHariTanggal}</strong>
                       </div>
                     </div>
-                    <div className="inline-flex gap-2 text-xs font-bold text-emerald-900">
-                      <span>Total Diinput hari ini: <strong>{dailyRecapLogs.length} dari {activeHalaqohStudents.length} Siswa</strong></span>
+                    <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3 shrink-0">
+                      <div className="text-xs font-bold text-emerald-900">
+                        Total Diinput: <strong>{dailyRecapLogs.length} dari {activeHalaqohStudents.length} Siswa</strong>
+                      </div>
+                      <div className="flex gap-2 w-full sm:w-auto">
+                        <button
+                          id="btn-share-wa"
+                          onClick={handleShareWA}
+                          disabled={dailyRecapLogs.length === 0}
+                          className="flex-1 sm:flex-initial inline-flex items-center justify-center gap-1.5 px-3 py-2 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 disabled:pointer-events-none text-white font-extrabold text-xs rounded-xl transition shadow-xs cursor-pointer"
+                          title="Bagikan Laporan ke WhatsApp"
+                        >
+                          <Share2 className="w-3.5 h-3.5" />
+                          <span>Kirim ke WA</span>
+                        </button>
+                        <button
+                          id="btn-print-pdf"
+                          onClick={handleCetakPDF}
+                          disabled={dailyRecapLogs.length === 0}
+                          className="flex-1 sm:flex-initial inline-flex items-center justify-center gap-1.5 px-3 py-2 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 disabled:pointer-events-none text-white font-extrabold text-xs rounded-xl transition shadow-xs cursor-pointer"
+                          title="Cetak/Simpan PDF Laporan"
+                        >
+                          <Printer className="w-3.5 h-3.5" />
+                          <span>Cetak PDF</span>
+                        </button>
+                      </div>
                     </div>
                   </div>
 
