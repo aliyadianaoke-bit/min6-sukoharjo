@@ -56,6 +56,8 @@ export default function AdminDashboard({
   const [siswaNama, setSiswaNama] = useState('');
   const [siswaKelasId, setSiswaKelasId] = useState('');
   const [siswaHalaqohId, setSiswaHalaqohId] = useState('');
+  const [siswaIsKelasDasar, setSiswaIsKelasDasar] = useState(false);
+  const [siswaIsKelasTahfidz, setSiswaIsKelasTahfidz] = useState(false);
 
   // 4. Musyrif Form
   const [musyrifNim, setMusyrifNim] = useState('');
@@ -90,6 +92,8 @@ export default function AdminDashboard({
     setSiswaNama('');
     setSiswaKelasId('');
     setSiswaHalaqohId('');
+    setSiswaIsKelasDasar(false);
+    setSiswaIsKelasTahfidz(false);
     setMusyrifNim('');
     setMusyrifNama('');
     setMusyrifHalaqohId('');
@@ -215,7 +219,9 @@ export default function AdminDashboard({
         kelasId: siswaKelasId,
         kelasNama: cls ? cls.nama : '',
         halaqohId: siswaHalaqohId || '',
-        halaqohNama: hq ? hq.nama : 'Belum Ada Halaqoh'
+        halaqohNama: hq ? hq.nama : 'Belum Ada Halaqoh',
+        isKelasDasar: siswaIsKelasDasar,
+        isKelasTahfidz: siswaIsKelasTahfidz
       };
 
       if (modalType === 'add') {
@@ -956,6 +962,7 @@ export default function AdminDashboard({
                       <th className="py-3.5 px-4 w-12">NO</th>
                       <th className="py-3.5 px-4 w-28">NO INDUK</th>
                       <th className="py-3.5 px-4">NAMA LENGKAP SISWA</th>
+                      <th className="py-3.5 px-4">PROGRAM</th>
                       <th className="py-3.5 px-4">KELAS</th>
                       <th className="py-3.5 px-4">HALAQOH QUR'AN</th>
                       <th className="py-3.5 px-4 text-right w-24">OPSI</th>
@@ -964,7 +971,7 @@ export default function AdminDashboard({
                   <tbody className="divide-y divide-slate-100 text-xs text-slate-700">
                     {students.length === 0 ? (
                       <tr>
-                        <td colSpan={6} className="py-8 text-center text-slate-400 font-medium">Belum ada data siswa.</td>
+                        <td colSpan={7} className="py-8 text-center text-slate-400 font-medium">Belum ada data siswa.</td>
                       </tr>
                     ) : (
                       students.map((sys, idx) => (
@@ -972,6 +979,23 @@ export default function AdminDashboard({
                           <td className="py-3 px-4 font-mono font-bold text-slate-400">{idx + 1}</td>
                           <td className="py-3 px-4 font-mono font-semibold text-slate-800">{sys.noInduk}</td>
                           <td className="py-3 px-4 font-bold text-slate-900">{sys.nama}</td>
+                          <td className="py-3 px-4">
+                            <div className="flex flex-wrap gap-1">
+                              {sys.isKelasDasar && (
+                                <span className="px-2 py-0.5 bg-sky-50 border border-sky-200 text-sky-700 rounded-lg text-[10px] font-bold">
+                                  Dasar
+                                </span>
+                              )}
+                              {sys.isKelasTahfidz && (
+                                <span className="px-2 py-0.5 bg-emerald-50 border border-emerald-200 text-emerald-700 rounded-lg text-[10px] font-bold">
+                                  Tahfidz
+                                </span>
+                              )}
+                              {!sys.isKelasDasar && !sys.isKelasTahfidz && (
+                                <span className="text-slate-400 italic text-[11px]">-</span>
+                              )}
+                            </div>
+                          </td>
                           <td className="py-3 px-4">
                             <span className="px-2 py-0.5 bg-slate-100 border border-slate-200 text-slate-700 rounded-lg text-[11px] font-medium">
                               {sys.kelasNama || 'N/A'}
@@ -992,6 +1016,8 @@ export default function AdminDashboard({
                                   setSiswaNama(sys.nama);
                                   setSiswaKelasId(sys.kelasId);
                                   setSiswaHalaqohId(sys.halaqohId);
+                                  setSiswaIsKelasDasar(sys.isKelasDasar || false);
+                                  setSiswaIsKelasTahfidz(sys.isKelasTahfidz || false);
                                 }}
                                 className="p-1.5 bg-slate-100 text-slate-600 hover:bg-slate-200 rounded-lg cursor-pointer transition"
                               >
@@ -1542,6 +1568,30 @@ export default function AdminDashboard({
                         <option key={h.id} value={h.id}>{h.nama}</option>
                       ))}
                     </select>
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <label className="text-xs font-bold text-slate-600 block">Program Kelas</label>
+                    <div className="flex gap-4 p-3 bg-slate-50 border border-slate-200 rounded-xl">
+                      <label className="flex items-center gap-2 cursor-pointer text-xs font-bold text-slate-700">
+                        <input
+                          type="checkbox"
+                          checked={siswaIsKelasDasar}
+                          onChange={(e) => setSiswaIsKelasDasar(e.target.checked)}
+                          className="rounded text-emerald-600 focus:ring-emerald-500 w-4 h-4 cursor-pointer"
+                        />
+                        <span>Kelas Dasar</span>
+                      </label>
+                      <label className="flex items-center gap-2 cursor-pointer text-xs font-bold text-slate-700">
+                        <input
+                          type="checkbox"
+                          checked={siswaIsKelasTahfidz}
+                          onChange={(e) => setSiswaIsKelasTahfidz(e.target.checked)}
+                          className="rounded text-emerald-600 focus:ring-emerald-500 w-4 h-4 cursor-pointer"
+                        />
+                        <span>Kelas Tahfidz</span>
+                      </label>
+                    </div>
                   </div>
 
                   <button

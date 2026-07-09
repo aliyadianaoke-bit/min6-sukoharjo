@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { 
   Calendar, CheckCircle, Award, BookMarked, FileText, BarChart2, Plus, Edit2, 
   Trash2, LogOut, ChevronRight, Filter, AlertCircle, Sparkles, Smile, Info, BookOpen,
-  Printer, Share2
+  Printer, Share2, TrendingUp
 } from 'lucide-react';
 import { db } from '../firebase';
 import { collection, addDoc, updateDoc, deleteDoc, doc } from 'firebase/firestore';
@@ -27,7 +27,7 @@ export default function MusyrifDashboard({
   journals,
   refreshData
 }: MusyrifDashboardProps) {
-  const [activeTab, setActiveTab] = useState<'input' | 'rekap_hari' | 'rekap_bulan'>('input');
+  const [activeTab, setActiveTab] = useState<'input_dasar' | 'input_tahfidz' | 'rekap_hari' | 'rekap_bulan'>('input_dasar');
   const [isSaving, setIsSaving] = useState(false);
   const [feedback, setFeedback] = useState({ text: '', type: 'success' });
 
@@ -724,6 +724,17 @@ export default function MusyrifDashboard({
   const activeHalaqohStudents = students.filter(s => s.halaqohId === selectedHalaqohId);
   const activeHalaqohObj = halaqohs.find(h => h.id === selectedHalaqohId);
 
+  // Filter students based on active halaqoh and program class (Dasar or Tahfidz)
+  const inputTabStudents = activeHalaqohStudents.filter(s => {
+    if (activeTab === 'input_dasar') {
+      return s.isKelasDasar === true || (!s.isKelasDasar && !s.isKelasTahfidz);
+    }
+    if (activeTab === 'input_tahfidz') {
+      return s.isKelasTahfidz === true;
+    }
+    return true;
+  });
+
   // Filter journals for "Rekap Harian"
   const dailyRecapLogs = journals.filter(j => j.halaqohId === selectedHalaqohId && j.tanggal === rekapHariTanggal);
 
@@ -792,19 +803,20 @@ export default function MusyrifDashboard({
       </nav>
 
       {/* Main Core Section */}
-      <div className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-8 flex flex-col md:flex-row gap-6">
+      <div className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-8 flex flex-col md:flex-row gap-6 pb-24 md:pb-8">
         
         {/* Left Control Sidebar */}
         <div className="w-full md:w-64 flex-none space-y-4">
           
           {/* Active Tab Buttons */}
-          <div className="bg-white p-4 rounded-2xl border border-slate-150 shadow-sm space-y-1">
+          <div className="hidden md:block bg-white p-4 rounded-2xl border border-slate-150 shadow-sm space-y-1">
             <h4 className="text-[10px] font-bold text-slate-400 px-3 uppercase tracking-widest mb-2">MENU PERKEMBANGAN</h4>
             
             {[
-              { id: 'input', label: 'Input Harian', icon: Plus },
-              { id: 'rekap_hari', label: 'Rekap Harian', icon: FileText },
-              { id: 'rekap_bulan', label: 'Rekap Bulanan', icon: BarChart2 }
+              { id: 'input_dasar', label: 'Input Harian Dasar', icon: BookOpen },
+              { id: 'input_tahfidz', label: 'Input Harian Tahfidz', icon: BookMarked },
+              { id: 'rekap_hari', label: 'Rekap Harian', icon: Calendar },
+              { id: 'rekap_bulan', label: 'Rekap Bulanan', icon: TrendingUp }
             ].map(tab => {
               const IconComp = tab.icon;
               return (
@@ -829,23 +841,10 @@ export default function MusyrifDashboard({
               );
             })}
           </div>
-
-          {/* Connected Info Widget */}
-          <div className="p-4 bg-emerald-50/70 border border-emerald-100 rounded-2xl space-y-2 text-xs text-slate-700">
-            <div className="flex items-center gap-1.5 font-bold text-emerald-900">
-              <Sparkles className="w-4 h-4 text-emerald-700" />
-              <span>Info Halaqoh Anda:</span>
-            </div>
-            {assignedHalaqoh ? (
-              <p>Halaqoh binaan utama Anda adalah <strong className="text-emerald-800">{assignedHalaqoh.nama}</strong>.</p>
-            ) : (
-              <p className="text-slate-500 italic">Anda belum memiliki halaqoh binaan tetap yang ditentukan Admin. Anda masih bisa mengajar halaqoh lain.</p>
-            )}
-          </div>
         </div>
 
         {/* Right Dashboard Body Panel */}
-        <div className="flex-1 bg-white border border-slate-150 p-6 rounded-3xl shadow-xs space-y-6">
+        <div className="flex-1 space-y-6">
           
           {feedback.text && (
             <div className={`p-4 rounded-xl text-xs font-semibold border ${
@@ -856,11 +855,13 @@ export default function MusyrifDashboard({
           )}
 
           {/* TAB: INPUT HARIAN */}
-          {activeTab === 'input' && (
+          {(activeTab === 'input_dasar' || activeTab === 'input_tahfidz') && (
             <div className="space-y-6">
               <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between border-b border-slate-100 pb-4 gap-3">
                 <div>
-                  <h3 className="text-lg font-black text-slate-800">Pencatatan Setoran Harian (Input Harian)</h3>
+                  <h3 className="text-lg font-black text-slate-800">
+                    {activeTab === 'input_dasar' ? 'Pencatatan Setoran Harian (Input Harian Dasar)' : 'Pencatatan Setoran Harian (Input Harian Tahfidz)'}
+                  </h3>
                   <p className="text-xs text-slate-500">Pilih halaqoh untuk memunculkan daftar santri kemudian inputkan catatan setoran harian mereka</p>
                 </div>
               </div>
@@ -889,23 +890,24 @@ export default function MusyrifDashboard({
                 </select>
               </div>
 
-              {/* Student Cards Grid for Laypeople & Mobile Friendliness */}
-              {selectedHalaqohId ? (
-                <div className="space-y-4">
-                  <div className="flex items-center justify-between">
-                    <h4 className="text-xs font-bold text-slate-700 uppercase tracking-widest">
-                      Daftar Murid ({activeHalaqohStudents.length} Anak)
-                    </h4>
-                    <span className="text-[10px] text-slate-400 font-semibold italic">Tampilan Mobile-Friendly Card</span>
-                  </div>
-
-                  {activeHalaqohStudents.length === 0 ? (
-                    <div className="p-12 text-center text-xs text-slate-400 border border-dashed border-slate-200 rounded-2xl">
-                      Tidak ada santri yang terdaftar dalam Halaqoh ini. Hubungi Admin jika ada kesalahan pemetaan halaqoh.
+              {/* Student Cards Grid for Laypeople & Mobile Friendliness - Wrapped in White Card Border */}
+              <div className="bg-white border border-slate-150 p-6 rounded-3xl shadow-xs">
+                {selectedHalaqohId ? (
+                  <div className="space-y-4">
+                    <div className="flex items-center justify-between">
+                      <h4 className="text-xs font-bold text-slate-700 uppercase tracking-widest">
+                        Daftar Murid ({inputTabStudents.length} Anak)
+                      </h4>
+                      <span className="text-[10px] text-slate-400 font-semibold italic">Tampilan Mobile-Friendly Card</span>
                     </div>
-                  ) : (
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                      {activeHalaqohStudents.map((siswa, sIndex) => {
+
+                    {inputTabStudents.length === 0 ? (
+                      <div className="p-12 text-center text-xs text-slate-400 border border-dashed border-slate-200 rounded-2xl">
+                        Tidak ada santri yang terdaftar dalam program ini di Halaqoh terpilih.
+                      </div>
+                    ) : (
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                      {inputTabStudents.map((siswa, sIndex) => {
                         // Find if there is a setoran entry today
                         const todayStr = new Date().toISOString().split('T')[0];
                         const logHariIni = journals.find(j => j.siswaId === siswa.id && j.tanggal === todayStr);
@@ -924,6 +926,18 @@ export default function MusyrifDashboard({
                                 <div>
                                   <span className="text-[10px] font-mono font-bold text-slate-400">#{sIndex + 1} | INDUK: {siswa.noInduk}</span>
                                   <h5 className="font-extrabold text-sm text-slate-800 uppercase leading-snug mt-0.5">{siswa.nama}</h5>
+                                  <div className="flex gap-1.5 mt-1">
+                                    {siswa.isKelasDasar && (
+                                      <span className="text-[9px] bg-sky-50 border border-sky-100 font-bold px-1.5 py-0.5 rounded text-sky-700">
+                                        Dasar
+                                      </span>
+                                    )}
+                                    {siswa.isKelasTahfidz && (
+                                      <span className="text-[9px] bg-emerald-50 border border-emerald-100 font-bold px-1.5 py-0.5 rounded text-emerald-700">
+                                        Tahfidz
+                                      </span>
+                                    )}
+                                  </div>
                                 </div>
                                 <span className="text-[10px] bg-slate-100 border border-slate-200 rounded-lg font-bold px-2 py-0.5 text-slate-600 block self-start">
                                   {siswa.kelasNama || 'N/A'}
@@ -980,17 +994,18 @@ export default function MusyrifDashboard({
                   )}
                 </div>
               ) : (
-                <div className="text-center py-12 bg-slate-50 border border-dashed border-slate-200 rounded-3xl text-slate-400 text-xs">
+                <div className="text-center py-12 bg-slate-50 border border-dashed border-slate-200 rounded-2xl text-slate-400 text-xs">
                   Silahkan aktifkan salah satu filter Halaqoh Qur'an di atas terlebih dahulu.
                 </div>
               )}
+              </div>
             </div>
           )}
 
           {/* TAB: REKAP HARIAN */}
           {activeTab === 'rekap_hari' && (
             <div className="space-y-6">
-              <div className="border-b border-slate-100 pb-4">
+              <div>
                 <h3 className="text-lg font-black text-slate-800">Rekap Harian Halaqoh</h3>
                 <p className="text-xs text-slate-500">Melihat seluruh setoran santri di dalam satu halaqoh pada tanggal tertentu</p>
               </div>
@@ -1028,104 +1043,106 @@ export default function MusyrifDashboard({
                 </div>
               </div>
 
-              {selectedHalaqohId ? (
-                <div className="space-y-4">
-                  <div className="p-4 bg-emerald-50 border border-emerald-100 rounded-2xl flex flex-col md:flex-row md:items-center justify-between gap-4">
-                    <div>
-                      <h4 className="text-xs font-bold text-emerald-900 uppercase">Rekap Hasil Setoran Santri</h4>
-                      <div className="text-emerald-700 text-xs mt-0.5">
-                        Halaqoh: <strong>{activeHalaqohObj?.nama}</strong> | Tanggal: <strong>{rekapHariTanggal}</strong>
+              <div className="bg-white border border-slate-150 p-6 rounded-3xl shadow-xs">
+                {selectedHalaqohId ? (
+                  <div className="space-y-4">
+                    <div className="p-4 bg-emerald-50 border border-emerald-100 rounded-2xl flex flex-col md:flex-row md:items-center justify-between gap-4">
+                      <div>
+                        <h4 className="text-xs font-bold text-emerald-900 uppercase">Rekap Hasil Setoran Santri</h4>
+                        <div className="text-emerald-700 text-xs mt-0.5">
+                          Halaqoh: <strong>{activeHalaqohObj?.nama}</strong> | Tanggal: <strong>{rekapHariTanggal}</strong>
+                        </div>
+                      </div>
+                      <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3 shrink-0">
+                        <div className="text-xs font-bold text-emerald-900">
+                          Total Diinput: <strong>{dailyRecapLogs.length} dari {activeHalaqohStudents.length} Siswa</strong>
+                        </div>
+                        <div className="flex gap-2 w-full sm:w-auto">
+                          <button
+                            id="btn-share-wa"
+                            onClick={handleShareWA}
+                            disabled={dailyRecapLogs.length === 0}
+                            className="flex-1 sm:flex-initial inline-flex items-center justify-center gap-1.5 px-3 py-2 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 disabled:pointer-events-none text-white font-extrabold text-xs rounded-xl transition shadow-xs cursor-pointer"
+                            title="Bagikan Laporan ke WhatsApp"
+                          >
+                            <Share2 className="w-3.5 h-3.5" />
+                            <span>Kirim ke WA</span>
+                          </button>
+                          <button
+                            id="btn-print-pdf"
+                            onClick={handleCetakPDF}
+                            disabled={dailyRecapLogs.length === 0}
+                            className="flex-1 sm:flex-initial inline-flex items-center justify-center gap-1.5 px-3 py-2 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 disabled:pointer-events-none text-white font-extrabold text-xs rounded-xl transition shadow-xs cursor-pointer"
+                            title="Cetak/Simpan PDF Laporan"
+                          >
+                            <Printer className="w-3.5 h-3.5" />
+                            <span>Cetak PDF</span>
+                          </button>
+                        </div>
                       </div>
                     </div>
-                    <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3 shrink-0">
-                      <div className="text-xs font-bold text-emerald-900">
-                        Total Diinput: <strong>{dailyRecapLogs.length} dari {activeHalaqohStudents.length} Siswa</strong>
-                      </div>
-                      <div className="flex gap-2 w-full sm:w-auto">
-                        <button
-                          id="btn-share-wa"
-                          onClick={handleShareWA}
-                          disabled={dailyRecapLogs.length === 0}
-                          className="flex-1 sm:flex-initial inline-flex items-center justify-center gap-1.5 px-3 py-2 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 disabled:pointer-events-none text-white font-extrabold text-xs rounded-xl transition shadow-xs cursor-pointer"
-                          title="Bagikan Laporan ke WhatsApp"
-                        >
-                          <Share2 className="w-3.5 h-3.5" />
-                          <span>Kirim ke WA</span>
-                        </button>
-                        <button
-                          id="btn-print-pdf"
-                          onClick={handleCetakPDF}
-                          disabled={dailyRecapLogs.length === 0}
-                          className="flex-1 sm:flex-initial inline-flex items-center justify-center gap-1.5 px-3 py-2 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 disabled:pointer-events-none text-white font-extrabold text-xs rounded-xl transition shadow-xs cursor-pointer"
-                          title="Cetak/Simpan PDF Laporan"
-                        >
-                          <Printer className="w-3.5 h-3.5" />
-                          <span>Cetak PDF</span>
-                        </button>
-                      </div>
-                    </div>
-                  </div>
 
-                  <div className="overflow-x-auto border border-slate-100 rounded-2xl">
-                    <table className="w-full text-left border-collapse">
-                      <thead>
-                        <tr className="bg-slate-50 text-slate-600 border-b border-slate-100 text-[10px] font-bold uppercase tracking-wider">
-                          <th className="py-3 px-4 w-12">NO</th>
-                          <th className="py-3 px-4 w-24">NO INDUK</th>
-                          <th className="py-3 px-4 w-44">NAMA SISWA</th>
-                          <th className="py-3 px-4">MATERI SETORAN (SURAT/AYAT)</th>
-                          <th className="py-3 px-4">EVALUASI TAHSIN & TAJWID</th>
-                          <th className="py-3 px-4 text-center w-28">NILAI</th>
-                          <th className="py-3 px-4 text-right w-16">AKSI</th>
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-slate-150 text-[11.5px] text-slate-700">
-                        {dailyRecapLogs.length === 0 ? (
-                          <tr>
-                            <td colSpan={7} className="py-12 text-center text-slate-400 font-medium italic">
-                              Tidak ada data setoran yang tercatat pada halaqoh dan tanggal ini.
-                            </td>
+                    <div className="overflow-x-auto border border-slate-100 rounded-2xl">
+                      <table className="w-full text-left border-collapse">
+                        <thead>
+                          <tr className="bg-slate-50 text-slate-600 border-b border-slate-100 text-[10px] font-bold uppercase tracking-wider">
+                            <th className="py-3 px-4 w-12">NO</th>
+                            <th className="py-3 px-4 w-24">NO INDUK</th>
+                            <th className="py-3 px-4 w-44">NAMA SISWA</th>
+                            <th className="py-3 px-4">MATERI SETORAN (SURAT/AYAT)</th>
+                            <th className="py-3 px-4">EVALUASI TAHSIN & TAJWID</th>
+                            <th className="py-3 px-4 text-center w-28">NILAI</th>
+                            <th className="py-3 px-4 text-right w-16">AKSI</th>
                           </tr>
-                        ) : (
-                          dailyRecapLogs.map((log, index) => (
-                            <tr key={log.id} className="hover:bg-slate-50/40">
-                              <td className="py-3 px-4 font-mono font-bold text-slate-400">{index + 1}</td>
-                              <td className="py-3 px-4 font-mono">{log.noInduk}</td>
-                              <td className="py-3 px-4 font-bold text-slate-900">{log.siswaNama}</td>
-                              <td className="py-3 px-4 font-semibold text-emerald-900">{log.materiSetoran}</td>
-                              <td className="py-3 px-4 text-slate-500 italic max-w-xs truncate" title={log.evaluasiTahsin}>{log.evaluasiTahsin}</td>
-                              <td className="py-3 px-4 text-center">
-                                <span className={`px-2 py-1 rounded-full font-bold text-[10px] uppercase ${getNilaiBadgeClass(log.nilai)}`}>
-                                  {getNilaiLabel(log.nilai)}
-                                </span>
-                              </td>
-                              <td className="py-3 px-4 text-right">
-                                <button
-                                  onClick={() => handleDeleteLog(log.id)}
-                                  className="text-rose-600 hover:text-rose-800 p-1 bg-rose-50 hover:bg-rose-100 rounded-md cursor-pointer transition"
-                                >
-                                  <Trash2 className="w-3.5 h-3.5" />
-                                </button>
+                        </thead>
+                        <tbody className="divide-y divide-slate-150 text-[11.5px] text-slate-700">
+                          {dailyRecapLogs.length === 0 ? (
+                            <tr>
+                              <td colSpan={7} className="py-12 text-center text-slate-400 font-medium italic">
+                                Tidak ada data setoran yang tercatat pada halaqoh dan tanggal ini.
                               </td>
                             </tr>
-                          ))
-                        )}
-                      </tbody>
-                    </table>
+                          ) : (
+                            dailyRecapLogs.map((log, index) => (
+                              <tr key={log.id} className="hover:bg-slate-50/40">
+                                <td className="py-3 px-4 font-mono font-bold text-slate-400">{index + 1}</td>
+                                <td className="py-3 px-4 font-mono">{log.noInduk}</td>
+                                <td className="py-3 px-4 font-bold text-slate-900">{log.siswaNama}</td>
+                                <td className="py-3 px-4 font-semibold text-emerald-900">{log.materiSetoran}</td>
+                                <td className="py-3 px-4 text-slate-500 italic max-w-xs truncate" title={log.evaluasiTahsin}>{log.evaluasiTahsin}</td>
+                                <td className="py-3 px-4 text-center">
+                                  <span className={`px-2 py-1 rounded-full font-bold text-[10px] uppercase ${getNilaiBadgeClass(log.nilai)}`}>
+                                    {getNilaiLabel(log.nilai)}
+                                  </span>
+                                </td>
+                                <td className="py-3 px-4 text-right">
+                                  <button
+                                    onClick={() => handleDeleteLog(log.id)}
+                                    className="text-rose-600 hover:text-rose-800 p-1 bg-rose-50 hover:bg-rose-100 rounded-md cursor-pointer transition"
+                                  >
+                                    <Trash2 className="w-3.5 h-3.5" />
+                                  </button>
+                                </td>
+                              </tr>
+                            ))
+                          )}
+                        </tbody>
+                      </table>
+                    </div>
                   </div>
-                </div>
-              ) : (
-                <div className="text-center py-10 bg-slate-50 rounded-2xl border border-dashed border-slate-200 text-xs text-slate-400">
-                  Pilih Halaqoh terlebih dahulu di atas.
-                </div>
-              )}
+                ) : (
+                  <div className="text-center py-10 bg-slate-50 rounded-2xl border border-dashed border-slate-200 text-xs text-slate-400">
+                    Pilih Halaqoh terlebih dahulu di atas.
+                  </div>
+                )}
+              </div>
             </div>
           )}
 
           {/* TAB: REKAP BULANAN */}
           {activeTab === 'rekap_bulan' && (
             <div className="space-y-6">
-              <div className="border-b border-slate-100 pb-4">
+              <div>
                 <h3 className="text-lg font-black text-slate-800">Laporan Rekap Bulanan Siswa</h3>
                 <p className="text-xs text-slate-500">Melihat performa, tingkat keaktifan, dan rekam materi setoran per individu siswa per bulan</p>
               </div>
@@ -1187,90 +1204,92 @@ export default function MusyrifDashboard({
                 </div>
               </div>
 
-              {selectedBulanSiswaId ? (
-                <div className="space-y-6">
-                  {/* Monthly Summary Statistics Cards */}
-                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-                    <div className="p-4 bg-emerald-50/70 border border-emerald-100 rounded-2xl">
-                      <div className="text-[10px] font-bold text-emerald-600 uppercase">Jumlah Setoran</div>
-                      <div className="text-2xl font-black text-emerald-900 mt-1">{studentMonthlyLogs.length} Kali</div>
-                    </div>
+              <div className="bg-white border border-slate-150 p-6 rounded-3xl shadow-xs">
+                {selectedBulanSiswaId ? (
+                  <div className="space-y-6">
+                    {/* Monthly Summary Statistics Cards */}
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+                      <div className="p-4 bg-emerald-50/70 border border-emerald-100 rounded-2xl">
+                        <div className="text-[10px] font-bold text-emerald-600 uppercase">Jumlah Setoran</div>
+                        <div className="text-2xl font-black text-emerald-900 mt-1">{studentMonthlyLogs.length} Kali</div>
+                      </div>
 
-                    <div className="p-4 bg-indigo-50/70 border border-indigo-100 rounded-2xl">
-                      <div className="text-[10px] font-bold text-indigo-600 uppercase">Perolehan Mumtaz (A)</div>
-                      <div className="text-2xl font-black text-indigo-900 mt-1">
-                        {studentMonthlyLogs.filter(j => j.nilai === 'A').length} Kali
+                      <div className="p-4 bg-indigo-50/70 border border-indigo-100 rounded-2xl">
+                        <div className="text-[10px] font-bold text-indigo-600 uppercase">Perolehan Mumtaz (A)</div>
+                        <div className="text-2xl font-black text-indigo-900 mt-1">
+                          {studentMonthlyLogs.filter(j => j.nilai === 'A').length} Kali
+                        </div>
+                      </div>
+
+                      <div className="p-4 bg-sky-50 border border-sky-100 rounded-2xl">
+                        <div className="text-[10px] font-bold text-sky-600 uppercase">Jayyid Jidid (B)</div>
+                        <div className="text-xl font-bold text-sky-900 mt-1">
+                          {studentMonthlyLogs.filter(j => j.nilai === 'B').length} Kali
+                        </div>
+                      </div>
+
+                      <div className="p-4 bg-amber-50 border border-amber-100 rounded-2xl">
+                        <div className="text-[10px] font-bold text-amber-600 uppercase">Nilai Lain (C/D/E)</div>
+                        <div className="text-xl font-bold text-amber-900 mt-1">
+                          {studentMonthlyLogs.filter(j => ['C','D','E'].includes(j.nilai)).length} Kali
+                        </div>
                       </div>
                     </div>
 
-                    <div className="p-4 bg-sky-50 border border-sky-100 rounded-2xl">
-                      <div className="text-[10px] font-bold text-sky-600 uppercase">Jayyid Jidid (B)</div>
-                      <div className="text-xl font-bold text-sky-900 mt-1">
-                        {studentMonthlyLogs.filter(j => j.nilai === 'B').length} Kali
+                    {/* Monthly Chronology Logs table/timeline */}
+                    <div className="space-y-4">
+                      <div className="flex items-center justify-between border-b border-slate-100 pb-2">
+                        <h4 className="text-xs font-bold text-slate-800 uppercase tracking-widest">
+                          Detail Jurnal Bulanan Siswa
+                        </h4>
+                        <button
+                          id="btn-print-monthly"
+                          onClick={handleCetakPDFBulanan}
+                          disabled={studentMonthlyLogs.length === 0}
+                          className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 disabled:pointer-events-none text-white font-extrabold text-xs rounded-xl transition shadow-xs cursor-pointer"
+                          title="Cetak Rekap Bulanan ke PDF"
+                        >
+                          <Printer className="w-3.5 h-3.5" />
+                          <span>Cetak PDF</span>
+                        </button>
                       </div>
-                    </div>
 
-                    <div className="p-4 bg-amber-50 border border-amber-100 rounded-2xl">
-                      <div className="text-[10px] font-bold text-amber-600 uppercase">Nilai Lain (C/D/E)</div>
-                      <div className="text-xl font-bold text-amber-900 mt-1">
-                        {studentMonthlyLogs.filter(j => ['C','D','E'].includes(j.nilai)).length} Kali
-                      </div>
+                      {studentMonthlyLogs.length === 0 ? (
+                        <div className="p-8 text-center text-xs text-slate-400 border border-dashed border-slate-200 rounded-2xl">
+                          Tidak ada laporan setoran siswa ini untuk bulan terpilih.
+                        </div>
+                      ) : (
+                        <div className="space-y-3">
+                          {studentMonthlyLogs.map((log, index) => (
+                            <div key={log.id} className="p-4 bg-white border border-slate-150 rounded-2xl shadow-xs space-y-2">
+                              <div className="flex items-center justify-between border-b border-slate-50 pb-2">
+                                <span className="text-[11px] font-mono font-bold text-slate-500">
+                                  📅 {log.tanggal}
+                                </span>
+                                <span className={`px-2.5 py-0.5 rounded-full font-bold text-[10px] uppercase ${getNilaiBadgeClass(log.nilai)}`}>
+                                  {getNilaiLabel(log.nilai)}
+                                </span>
+                              </div>
+                              <div className="text-xs space-y-1">
+                                <p className="font-bold text-slate-800">
+                                  📖 Materi: <span className="text-emerald-800">{log.materiSetoran}</span>
+                                </p>
+                                <p className="text-slate-500 italic leading-snug">
+                                  🔍 Evaluasi: {log.evaluasiTahsin}
+                                </p>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      )}
                     </div>
                   </div>
-
-                  {/* Monthly Chronology Logs table/timeline */}
-                  <div className="space-y-4">
-                    <div className="flex items-center justify-between border-b border-slate-100 pb-2">
-                      <h4 className="text-xs font-bold text-slate-800 uppercase tracking-widest">
-                        Detail Jurnal Bulanan Siswa
-                      </h4>
-                      <button
-                        id="btn-print-monthly"
-                        onClick={handleCetakPDFBulanan}
-                        disabled={studentMonthlyLogs.length === 0}
-                        className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 disabled:pointer-events-none text-white font-extrabold text-xs rounded-xl transition shadow-xs cursor-pointer"
-                        title="Cetak Rekap Bulanan ke PDF"
-                      >
-                        <Printer className="w-3.5 h-3.5" />
-                        <span>Cetak PDF</span>
-                      </button>
-                    </div>
-
-                    {studentMonthlyLogs.length === 0 ? (
-                      <div className="p-8 text-center text-xs text-slate-400 border border-dashed border-slate-200 rounded-2xl">
-                        Tidak ada laporan setoran siswa ini untuk bulan terpilih.
-                      </div>
-                    ) : (
-                      <div className="space-y-3">
-                        {studentMonthlyLogs.map((log, index) => (
-                          <div key={log.id} className="p-4 bg-white border border-slate-150 rounded-2xl shadow-xs space-y-2">
-                            <div className="flex items-center justify-between border-b border-slate-50 pb-2">
-                              <span className="text-[11px] font-mono font-bold text-slate-500">
-                                📅 {log.tanggal}
-                              </span>
-                              <span className={`px-2.5 py-0.5 rounded-full font-bold text-[10px] uppercase ${getNilaiBadgeClass(log.nilai)}`}>
-                                {getNilaiLabel(log.nilai)}
-                              </span>
-                            </div>
-                            <div className="text-xs space-y-1">
-                              <p className="font-bold text-slate-800">
-                                📖 Materi: <span className="text-emerald-800">{log.materiSetoran}</span>
-                              </p>
-                              <p className="text-slate-500 italic leading-snug">
-                                🔍 Evaluasi: {log.evaluasiTahsin}
-                              </p>
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    )}
+                ) : (
+                  <div className="text-center py-12 bg-slate-50 border border-dashed border-slate-200 rounded-3xl text-slate-400 text-xs">
+                    Silahkan lengkapi filter pilihan "Halaqoh" dan pilih "Siswa" di atas untuk memuat laporan bulanan.
                   </div>
-                </div>
-              ) : (
-                <div className="text-center py-12 bg-slate-50 border border-dashed border-slate-200 rounded-3xl text-slate-400 text-xs">
-                  Silahkan lengkapi filter pilihan "Halaqoh" dan pilih "Siswa" di atas untuk memuat laporan bulanan.
-                </div>
-              )}
+                )}
+              </div>
             </div>
           )}
 
@@ -1365,6 +1384,40 @@ export default function MusyrifDashboard({
           </div>
         </div>
       )}
+
+      {/* Mobile Bottom Navigation Bar */}
+      <div className="fixed bottom-0 left-0 right-0 z-40 bg-white border-t border-slate-200/80 shadow-[0_-4px_12px_rgba(0,0,0,0.05)] md:hidden">
+        <div className="grid grid-cols-4 h-16 max-w-md mx-auto">
+          {[
+            { id: 'input_dasar', label: 'Harian Dasar', icon: BookOpen },
+            { id: 'input_tahfidz', label: 'Harian Tahfidz', icon: BookMarked },
+            { id: 'rekap_hari', label: 'Rekap Harian', icon: Calendar },
+            { id: 'rekap_bulan', label: 'Rekap Bulanan', icon: TrendingUp }
+          ].map(tab => {
+            const IconComp = tab.icon;
+            const isActive = activeTab === tab.id;
+            return (
+              <button
+                key={tab.id}
+                onClick={() => {
+                  setActiveTab(tab.id as any);
+                  setFeedback({ text: '', type: 'success' });
+                }}
+                className={`flex flex-col items-center justify-center gap-1 w-full h-full cursor-pointer transition-colors ${
+                  isActive 
+                    ? 'text-emerald-700 font-extrabold' 
+                    : 'text-slate-500 hover:text-slate-900 font-medium'
+                }`}
+              >
+                <div className={`p-1.5 rounded-xl transition-all ${isActive ? 'bg-emerald-50 scale-110' : ''}`}>
+                  <IconComp className={`w-5 h-5 ${isActive ? 'text-emerald-700' : 'text-slate-400'}`} />
+                </div>
+                <span className="text-[9px] tracking-tight leading-none truncate max-w-full px-1">{tab.label}</span>
+              </button>
+            );
+          })}
+        </div>
+      </div>
     </div>
   );
 }

@@ -19,6 +19,8 @@ export interface Siswa {
   kelasNama: string;
   halaqohId: string; // Halaqoh ID
   halaqohNama: string;
+  isKelasDasar?: boolean;
+  isKelasTahfidz?: boolean;
 }
 
 export interface Musyrif {
