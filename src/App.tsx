@@ -171,6 +171,7 @@ export default function App() {
           onLogout={handleLogout}
           userId={currentUser.id}
           userNama={currentUser.nama}
+          classes={classes}
           students={students}
           halaqohs={halaqohs}
           journals={journals}

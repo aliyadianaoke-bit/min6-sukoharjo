@@ -1,17 +1,20 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
   Calendar, CheckCircle, Award, BookMarked, FileText, BarChart2, Plus, Edit2, 
   Trash2, LogOut, ChevronRight, Filter, AlertCircle, Sparkles, Smile, Info, BookOpen,
-  Printer, Share2, TrendingUp
+  Printer, Share2, TrendingUp, Camera, UserCheck, Clock, RefreshCw
 } from 'lucide-react';
 import { db } from '../firebase';
-import { collection, addDoc, updateDoc, deleteDoc, doc } from 'firebase/firestore';
-import { Siswa, Halaqoh, CatatanHarian, NilaiEvaluasi } from '../types';
+import { collection, addDoc, updateDoc, deleteDoc, doc, getDocs, query, where } from 'firebase/firestore';
+import { Kelas, Siswa, Halaqoh, CatatanHarian, NilaiEvaluasi } from '../types';
+import AbsenSayaView from './AbsenSayaView';
+import AbsenCamera from './AbsenCamera';
 
 interface MusyrifDashboardProps {
   onLogout: () => void;
   userId: string;
   userNama: string;
+  classes: Kelas[];
   students: Siswa[];
   halaqohs: Halaqoh[];
   journals: CatatanHarian[];
@@ -22,14 +25,18 @@ export default function MusyrifDashboard({
   onLogout,
   userId,
   userNama,
+  classes,
   students,
   halaqohs,
   journals,
   refreshData
 }: MusyrifDashboardProps) {
-  const [activeTab, setActiveTab] = useState<'input_dasar' | 'input_tahfidz' | 'rekap_hari' | 'rekap_bulan'>('input_dasar');
+  const [activeTab, setActiveTab] = useState<'absen_saya' | 'input_siswa' | 'rekap_hari' | 'rekap_bulan'>('absen_saya');
   const [isSaving, setIsSaving] = useState(false);
   const [feedback, setFeedback] = useState({ text: '', type: 'success' });
+  const [showAutoAbsenModal, setShowAutoAbsenModal] = useState(false);
+  const [isAutoSaving, setIsAutoSaving] = useState(false);
+
 
   // Filter halaqohs to only those managed by the current Musyrif (supports multiple Musyrifs)
   const myHalaqohs = halaqohs.filter(h => h.musyrifId === userId || (h.musyrifIds && h.musyrifIds.includes(userId)));
@@ -40,6 +47,8 @@ export default function MusyrifDashboard({
 
   // Filter States
   const [selectedHalaqohId, setSelectedHalaqohId] = useState(initialHalaqohId);
+  const [selectedKelasId, setSelectedKelasId] = useState('');
+  const [selectedProgram, setSelectedProgram] = useState<'dasar' | 'tahfidz' | ''>('dasar');
   const [rekapHariTanggal, setRekapHariTanggal] = useState(new Date().toISOString().split('T')[0]);
   const [selectedBulanMonth, setSelectedBulanMonth] = useState('06'); // Default June (2026 as current year)
   const [selectedBulanSiswaId, setSelectedBulanSiswaId] = useState('');
@@ -54,6 +63,65 @@ export default function MusyrifDashboard({
   const [formEvaluasi, setFormEvaluasi] = useState('');
   const [formNilai, setFormNilai] = useState<NilaiEvaluasi>('A');
   const [editingJournalId, setEditingJournalId] = useState<string | null>(null);
+
+  // Check today's attendance on mount
+  useEffect(() => {
+    async function checkTodayAttendance() {
+      try {
+        const todayStr = new Date().toISOString().split('T')[0];
+        const q = query(
+          collection(db, 'absen_musyrif'),
+          where('musyrifId', '==', userId),
+          where('tanggal', '==', todayStr)
+        );
+        const snap = await getDocs(q);
+        if (snap.empty) {
+          setShowAutoAbsenModal(true);
+        }
+      } catch (err) {
+        console.error('Error checking today attendance:', err);
+      }
+    }
+    checkTodayAttendance();
+  }, [userId]);
+
+  const handleAutoCapture = async (base64Image: string) => {
+    setIsAutoSaving(true);
+    try {
+      const now = new Date();
+      
+      const year = now.getFullYear();
+      const month = String(now.getMonth() + 1).padStart(2, '0');
+      const date = String(now.getDate()).padStart(2, '0');
+      const tanggalStr = `${year}-${month}-${date}`;
+      
+      const hours = String(now.getHours()).padStart(2, '0');
+      const minutes = String(now.getMinutes()).padStart(2, '0');
+      const seconds = String(now.getSeconds()).padStart(2, '0');
+      const waktuStr = `${hours}:${minutes}:${seconds}`;
+      
+      const days = ['Minggu', 'Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu'];
+      const hariStr = days[now.getDay()];
+
+      const payload = {
+        musyrifId: userId,
+        musyrifNama: userNama,
+        tanggal: tanggalStr,
+        waktu: waktuStr,
+        hari: hariStr,
+        fotoUrl: base64Image
+      };
+
+      await addDoc(collection(db, 'absen_musyrif'), payload);
+      showFeedback('Absensi kehadiran Anda berhasil disimpan!');
+      setShowAutoAbsenModal(false);
+    } catch (err: any) {
+      console.error('Failed to save automatic attendance:', err);
+      showFeedback('Gagal menyimpan absensi: ' + err.message, 'danger');
+    } finally {
+      setIsAutoSaving(false);
+    }
+  };
 
   const showFeedback = (text: string, type: 'success' | 'danger' = 'success') => {
     setFeedback({ text, type });
@@ -125,7 +193,10 @@ export default function MusyrifDashboard({
   };
 
   const handleShareWA = () => {
-    if (!selectedHalaqohId || !activeHalaqohObj) return;
+    if (!selectedKelasId || !selectedProgram) return;
+    const activeKelasObj = classes.find(c => c.id === selectedKelasId);
+    const kelasNama = activeKelasObj?.nama || 'N/A';
+    const programLabel = selectedProgram === 'dasar' ? 'Dasar' : 'Tahfidz';
 
     const formattedDate = new Date(rekapHariTanggal).toLocaleDateString('id-ID', {
       day: 'numeric',
@@ -133,9 +204,9 @@ export default function MusyrifDashboard({
       year: 'numeric'
     });
 
-    let text = `*REKAP HARIAN HALAQOH TAHFIDZ*\n`;
+    let text = `*REKAP HARIAN KELAS ${kelasNama.toUpperCase()} (${programLabel.toUpperCase()})*\n`;
     text += `*Markaz Muhibbil Qur'an*\n\n`;
-    text += `📖 *Halaqoh*: ${activeHalaqohObj.nama}\n`;
+    text += `🏫 *Kelas / Program*: ${kelasNama} / ${programLabel}\n`;
     text += `👤 *Musyrif/ah*: Ustadz/ah ${userNama}\n`;
     text += `📅 *Tanggal*: ${formattedDate}\n`;
     text += `📊 *Total Setoran*: ${dailyRecapLogs.length} Santri\n\n`;
@@ -165,7 +236,10 @@ export default function MusyrifDashboard({
   };
 
   const handleCetakPDF = () => {
-    if (!selectedHalaqohId || !activeHalaqohObj) return;
+    if (!selectedKelasId || !selectedProgram) return;
+    const activeKelasObj = classes.find(c => c.id === selectedKelasId);
+    const kelasNama = activeKelasObj?.nama || 'N/A';
+    const programLabel = selectedProgram === 'dasar' ? 'Dasar' : 'Tahfidz';
 
     const iframe = document.createElement('iframe');
     iframe.style.position = 'absolute';
@@ -210,7 +284,7 @@ export default function MusyrifDashboard({
       <html>
       <head>
         <meta charset="utf-8">
-        <title>Rekap Harian - ${activeHalaqohObj.nama}</title>
+        <title>Rekap Harian Kelas ${kelasNama} - ${programLabel}</title>
         <style>
           @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
           body {
@@ -354,7 +428,7 @@ export default function MusyrifDashboard({
 
         <div class="meta-container">
           <div>
-            <div class="meta-item"><strong>Halaqoh Qur'an</strong>: ${activeHalaqohObj.nama}</div>
+            <div class="meta-item"><strong>Kelas / Program</strong>: ${kelasNama} / ${programLabel}</div>
             <div class="meta-item"><strong>Musyrif Pengampu</strong>: Ustadz/ah ${userNama}</div>
           </div>
           <div>
@@ -415,7 +489,7 @@ export default function MusyrifDashboard({
 
   const handleCetakPDFBulanan = () => {
     const selectedSiswa = students.find(s => s.id === selectedBulanSiswaId);
-    if (!selectedHalaqohId || !activeHalaqohObj || !selectedSiswa) return;
+    if (!selectedSiswa) return;
 
     const iframe = document.createElement('iframe');
     iframe.style.position = 'absolute';
@@ -639,7 +713,7 @@ export default function MusyrifDashboard({
           <div>
             <div class="meta-item"><strong>Nama Santri</strong>: ${selectedSiswa.nama}</div>
             <div class="meta-item"><strong>No. Induk / Kelas</strong>: ${selectedSiswa.noInduk} / ${selectedSiswa.kelasNama || 'Belum Diatur'}</div>
-            <div class="meta-item"><strong>Halaqoh Qur'an</strong>: ${activeHalaqohObj.nama}</div>
+            <div class="meta-item"><strong>Halaqoh Qur'an</strong>: ${selectedSiswa.halaqohNama || 'Belum Diatur'}</div>
           </div>
           <div>
             <div class="meta-item"><strong>Bulan / Tahun</strong>: ${bulanName} 2026</div>
@@ -720,25 +794,62 @@ export default function MusyrifDashboard({
     }, 500);
   };
 
-  // Filter students based on active halaqoh
-  const activeHalaqohStudents = students.filter(s => s.halaqohId === selectedHalaqohId);
-  const activeHalaqohObj = halaqohs.find(h => h.id === selectedHalaqohId);
+  // All students belonging to this Musyrif's managed halaqohs
+  const myStudents = students.filter(s => myHalaqohs.some(h => h.id === s.halaqohId));
 
-  // Filter students based on active halaqoh and program class (Dasar or Tahfidz)
-  const inputTabStudents = activeHalaqohStudents.filter(s => {
-    if (activeTab === 'input_dasar') {
+  // Filter students based on selected Class and Program
+  const inputTabStudents = myStudents.filter(s => {
+    if (!selectedKelasId) return false;
+    if (s.kelasId !== selectedKelasId) return false;
+    
+    // Check program
+    if (selectedProgram === 'dasar') {
       return s.isKelasDasar === true || (!s.isKelasDasar && !s.isKelasTahfidz);
     }
-    if (activeTab === 'input_tahfidz') {
+    if (selectedProgram === 'tahfidz') {
       return s.isKelasTahfidz === true;
     }
-    return true;
+    return false;
   });
 
-  // Filter journals for "Rekap Harian"
-  const dailyRecapLogs = journals.filter(j => j.halaqohId === selectedHalaqohId && j.tanggal === rekapHariTanggal);
+  // Filter journals for "Rekap Harian" based on class, program, and date
+  const dailyRecapLogs = journals.filter(j => {
+    if (j.tanggal !== rekapHariTanggal) return false;
+    
+    // Find student in students list
+    const s = students.find(siswa => siswa.id === j.siswaId);
+    if (!s) return false;
 
-  // Filter for "Rekap Bulanan"
+    // Must be managed by this Musyrif
+    const isMyStudent = myHalaqohs.some(h => h.id === s.halaqohId);
+    if (!isMyStudent) return false;
+
+    // Filter by selected Class
+    if (s.kelasId !== selectedKelasId) return false;
+
+    // Filter by selected Program
+    if (selectedProgram === 'dasar') {
+      return s.isKelasDasar === true || (!s.isKelasDasar && !s.isKelasTahfidz);
+    }
+    if (selectedProgram === 'tahfidz') {
+      return s.isKelasTahfidz === true;
+    }
+    return false;
+  });
+
+  // Students available for selection in "Rekap Bulanan"
+  const selectBulanStudents = myStudents.filter(s => {
+    if (s.kelasId !== selectedKelasId) return false;
+    if (selectedProgram === 'dasar') {
+      return s.isKelasDasar === true || (!s.isKelasDasar && !s.isKelasTahfidz);
+    }
+    if (selectedProgram === 'tahfidz') {
+      return s.isKelasTahfidz === true;
+    }
+    return false;
+  });
+
+  // Filter for "Rekap Bulanan" logs
   // Month string format: 2026-XX
   const selectedYearMonthPrefix = `2026-${selectedBulanMonth}`;
   const studentMonthlyLogs = journals.filter(j => 
@@ -813,8 +924,8 @@ export default function MusyrifDashboard({
             <h4 className="text-[10px] font-bold text-slate-400 px-3 uppercase tracking-widest mb-2">MENU PERKEMBANGAN</h4>
             
             {[
-              { id: 'input_dasar', label: 'Input Harian Dasar', icon: BookOpen },
-              { id: 'input_tahfidz', label: 'Input Harian Tahfidz', icon: BookMarked },
+              { id: 'absen_saya', label: 'Absen Saya', icon: UserCheck },
+              { id: 'input_siswa', label: 'Input Harian Siswa', icon: BookOpen },
               { id: 'rekap_hari', label: 'Rekap Harian', icon: Calendar },
               { id: 'rekap_bulan', label: 'Rekap Bulanan', icon: TrendingUp }
             ].map(tab => {
@@ -854,45 +965,67 @@ export default function MusyrifDashboard({
             </div>
           )}
 
+          {/* TAB: ABSEN SAYA */}
+          {activeTab === 'absen_saya' && (
+            <AbsenSayaView userId={userId} userNama={userNama} />
+          )}
+
           {/* TAB: INPUT HARIAN */}
-          {(activeTab === 'input_dasar' || activeTab === 'input_tahfidz') && (
+          {activeTab === 'input_siswa' && (
             <div className="space-y-6">
               <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between border-b border-slate-100 pb-4 gap-3">
                 <div>
                   <h3 className="text-lg font-black text-slate-800">
-                    {activeTab === 'input_dasar' ? 'Pencatatan Setoran Harian (Input Harian Dasar)' : 'Pencatatan Setoran Harian (Input Harian Tahfidz)'}
+                    Pencatatan Setoran Harian (Input Harian Siswa)
                   </h3>
-                  <p className="text-xs text-slate-500">Pilih halaqoh untuk memunculkan daftar santri kemudian inputkan catatan setoran harian mereka</p>
+                  <p className="text-xs text-slate-500">Pilih kelas kemudian dilanjut program dasar/tahfidz baru muncul data siswanya</p>
                 </div>
               </div>
 
-              {/* Dynamic Selector Row */}
+              {/* Filter Kelas & Program - Diluar border daftar murid */}
               <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100 flex flex-col sm:flex-row gap-4 items-center">
                 <div className="w-full sm:w-auto text-xs font-bold text-slate-600 shrink-0 uppercase tracking-wider flex items-center gap-1.5">
                   <Filter className="w-4 h-4 text-emerald-600" />
-                  <span>Halaqoh Terpilih :</span>
+                  <span>1. Pilih Kelas :</span>
                 </div>
                 <select
-                  value={selectedHalaqohId}
+                  value={selectedKelasId}
                   onChange={(e) => {
-                    setSelectedHalaqohId(e.target.value);
-                    // Reset rekap bulanan student if changed halaqoh
-                    setSelectedBulanSiswaId('');
+                    setSelectedKelasId(e.target.value);
+                    setSelectedBulanSiswaId(''); // Reset selected student in reports
                   }}
-                  className="w-full sm:w-72 px-4 py-2 bg-white border border-slate-200 text-xs rounded-xl focus:ring-2 focus:ring-emerald-500 focus:outline-none font-bold text-slate-800"
+                  className="w-full sm:w-60 px-4 py-2 bg-white border border-slate-200 text-xs rounded-xl focus:ring-2 focus:ring-emerald-500 focus:outline-none font-bold text-slate-800"
                 >
-                  <option value="">-- Silahkan Pilih Halaqoh --</option>
-                  {myHalaqohs.map(h => (
-                    <option key={h.id} value={h.id}>
-                      {h.nama}
+                  <option value="">-- Pilih Kelas --</option>
+                  {classes.map(c => (
+                    <option key={c.id} value={c.id}>
+                      {c.nama}
                     </option>
                   ))}
+                </select>
+
+                <div className="w-full sm:w-auto text-xs font-bold text-slate-600 shrink-0 uppercase tracking-wider flex items-center gap-1.5 sm:ml-4">
+                  <Filter className="w-4 h-4 text-emerald-600" />
+                  <span>2. Pilih Program :</span>
+                </div>
+                <select
+                  value={selectedProgram}
+                  onChange={(e) => {
+                    const programVal = e.target.value as 'dasar' | 'tahfidz' | '';
+                    setSelectedProgram(programVal);
+                    setSelectedBulanSiswaId('');
+                  }}
+                  className="w-full sm:w-60 px-4 py-2 bg-white border border-slate-200 text-xs rounded-xl focus:ring-2 focus:ring-emerald-500 focus:outline-none font-bold text-slate-800"
+                >
+                  <option value="">-- Pilih Program --</option>
+                  <option value="dasar">Program Dasar</option>
+                  <option value="tahfidz">Program Tahfidz</option>
                 </select>
               </div>
 
               {/* Student Cards Grid for Laypeople & Mobile Friendliness - Wrapped in White Card Border */}
               <div className="bg-white border border-slate-150 p-6 rounded-3xl shadow-xs">
-                {selectedHalaqohId ? (
+                {selectedKelasId && selectedProgram ? (
                   <div className="space-y-4">
                     <div className="flex items-center justify-between">
                       <h4 className="text-xs font-bold text-slate-700 uppercase tracking-widest">
@@ -994,8 +1127,8 @@ export default function MusyrifDashboard({
                   )}
                 </div>
               ) : (
-                <div className="text-center py-12 bg-slate-50 border border-dashed border-slate-200 rounded-2xl text-slate-400 text-xs">
-                  Silahkan aktifkan salah satu filter Halaqoh Qur'an di atas terlebih dahulu.
+                <div className="text-center py-12 bg-slate-50 border border-dashed border-slate-200 rounded-3xl text-slate-400 text-xs">
+                  Silahkan pilih Kelas kemudian dilanjut Program di atas terlebih dahulu untuk memunculkan data siswa.
                 </div>
               )}
               </div>
@@ -1010,24 +1143,37 @@ export default function MusyrifDashboard({
                 <p className="text-xs text-slate-500">Melihat seluruh setoran santri di dalam satu halaqoh pada tanggal tertentu</p>
               </div>
 
-              {/* Day filters */}
+              {/* Day filters - Diluar atas border daftar murid */}
               <div className="bg-slate-50 p-5 rounded-2xl border border-slate-100 grid grid-cols-1 sm:grid-cols-3 gap-4">
                 <div className="space-y-1">
-                  <label className="text-[10px] font-bold text-slate-500 uppercase block">1. Pilih Halaqoh :</label>
+                  <label className="text-[10px] font-bold text-slate-500 uppercase block">1. Pilih Kelas :</label>
                   <select
-                    value={selectedHalaqohId}
-                    onChange={(e) => setSelectedHalaqohId(e.target.value)}
-                    className="w-full px-4 py-2 bg-white border border-slate-250 text-xs rounded-xl focus:outline-none font-bold"
+                    value={selectedKelasId}
+                    onChange={(e) => setSelectedKelasId(e.target.value)}
+                    className="w-full px-4 py-2 bg-white border border-slate-250 text-xs rounded-xl focus:outline-none font-bold text-slate-800"
                   >
-                    <option value="">-- Pilih Halaqoh --</option>
-                    {myHalaqohs.map(h => (
-                      <option key={h.id} value={h.id}>{h.nama}</option>
+                    <option value="">-- Pilih Kelas --</option>
+                    {classes.map(c => (
+                      <option key={c.id} value={c.id}>{c.nama}</option>
                     ))}
                   </select>
                 </div>
 
                 <div className="space-y-1">
-                  <label className="text-[10px] font-bold text-slate-500 uppercase block">2. Pilih Tanggal :</label>
+                  <label className="text-[10px] font-bold text-slate-500 uppercase block">2. Pilih Program :</label>
+                  <select
+                    value={selectedProgram}
+                    onChange={(e) => setSelectedProgram(e.target.value as any)}
+                    className="w-full px-4 py-2 bg-white border border-slate-250 text-xs rounded-xl focus:outline-none font-bold text-slate-800"
+                  >
+                    <option value="">-- Pilih Program --</option>
+                    <option value="dasar">Program Dasar</option>
+                    <option value="tahfidz">Program Tahfidz</option>
+                  </select>
+                </div>
+
+                <div className="space-y-1">
+                  <label className="text-[10px] font-bold text-slate-500 uppercase block">3. Pilih Tanggal :</label>
                   <input
                     type="date"
                     value={rekapHariTanggal}
@@ -1035,27 +1181,21 @@ export default function MusyrifDashboard({
                     className="w-full px-4 py-1.5 bg-white border border-slate-250 text-xs rounded-xl focus:outline-none font-semibold text-slate-700"
                   />
                 </div>
-
-                <div className="flex items-end justify-start">
-                  <span className="text-[10.5px] text-slate-500 font-medium">
-                    Hari ini adalah tanggal: <strong className="text-slate-800">{new Date().toISOString().split('T')[0]}</strong>
-                  </span>
-                </div>
               </div>
 
               <div className="bg-white border border-slate-150 p-6 rounded-3xl shadow-xs">
-                {selectedHalaqohId ? (
+                {selectedKelasId && selectedProgram ? (
                   <div className="space-y-4">
                     <div className="p-4 bg-emerald-50 border border-emerald-100 rounded-2xl flex flex-col md:flex-row md:items-center justify-between gap-4">
                       <div>
                         <h4 className="text-xs font-bold text-emerald-900 uppercase">Rekap Hasil Setoran Santri</h4>
                         <div className="text-emerald-700 text-xs mt-0.5">
-                          Halaqoh: <strong>{activeHalaqohObj?.nama}</strong> | Tanggal: <strong>{rekapHariTanggal}</strong>
+                          Kelas: <strong>{classes.find(c => c.id === selectedKelasId)?.nama}</strong> | Program: <strong>{selectedProgram === 'dasar' ? 'Dasar' : 'Tahfidz'}</strong> | Tanggal: <strong>{rekapHariTanggal}</strong>
                         </div>
                       </div>
                       <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3 shrink-0">
                         <div className="text-xs font-bold text-emerald-900">
-                          Total Diinput: <strong>{dailyRecapLogs.length} dari {activeHalaqohStudents.length} Siswa</strong>
+                          Total Diinput: <strong>{dailyRecapLogs.length} dari {inputTabStudents.length} Siswa</strong>
                         </div>
                         <div className="flex gap-2 w-full sm:w-auto">
                           <button
@@ -1099,7 +1239,7 @@ export default function MusyrifDashboard({
                           {dailyRecapLogs.length === 0 ? (
                             <tr>
                               <td colSpan={7} className="py-12 text-center text-slate-400 font-medium italic">
-                                Tidak ada data setoran yang tercatat pada halaqoh dan tanggal ini.
+                                Tidak ada data setoran yang tercatat pada kelas, program, dan tanggal ini.
                               </td>
                             </tr>
                           ) : (
@@ -1132,7 +1272,7 @@ export default function MusyrifDashboard({
                   </div>
                 ) : (
                   <div className="text-center py-10 bg-slate-50 rounded-2xl border border-dashed border-slate-200 text-xs text-slate-400">
-                    Pilih Halaqoh terlebih dahulu di atas.
+                    Silahkan pilih Kelas dan Program terlebih dahulu di atas.
                   </div>
                 )}
               </div>
@@ -1147,46 +1287,62 @@ export default function MusyrifDashboard({
                 <p className="text-xs text-slate-500">Melihat performa, tingkat keaktifan, dan rekam materi setoran per individu siswa per bulan</p>
               </div>
 
-              {/* Filters Block */}
-              <div className="bg-slate-50 p-5 rounded-3xl border border-slate-100 grid grid-cols-1 md:grid-cols-3 gap-4">
+              {/* Filters Block - Diluar atas border */}
+              <div className="bg-slate-50 p-5 rounded-3xl border border-slate-100 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
                 <div className="space-y-1">
-                  <label className="text-[10px] font-bold text-slate-500 block uppercase">1. Pilih Halaqoh :</label>
+                  <label className="text-[10px] font-bold text-slate-500 block uppercase">1. Pilih Kelas :</label>
                   <select
-                    value={selectedHalaqohId}
+                    value={selectedKelasId}
                     onChange={(e) => {
-                      setSelectedHalaqohId(e.target.value);
+                      setSelectedKelasId(e.target.value);
                       setSelectedBulanSiswaId(''); // Reset selected student
                     }}
-                    className="w-full px-4 py-2 bg-white border border-slate-200 text-xs rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                    className="w-full px-4 py-2 bg-white border border-slate-200 text-xs rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500 font-bold text-slate-800"
                   >
-                    <option value="">-- Pilih Halaqoh --</option>
-                    {myHalaqohs.map(h => (
-                      <option key={h.id} value={h.id}>{h.nama}</option>
+                    <option value="">-- Pilih Kelas --</option>
+                    {classes.map(c => (
+                      <option key={c.id} value={c.id}>{c.nama}</option>
                     ))}
                   </select>
                 </div>
 
                 <div className="space-y-1">
-                  <label className="text-[10px] font-bold text-slate-500 block uppercase">2. Pilih Siswa :</label>
+                  <label className="text-[10px] font-bold text-slate-500 block uppercase">2. Pilih Program :</label>
+                  <select
+                    value={selectedProgram}
+                    onChange={(e) => {
+                      setSelectedProgram(e.target.value as any);
+                      setSelectedBulanSiswaId(''); // Reset selected student
+                    }}
+                    className="w-full px-4 py-2 bg-white border border-slate-200 text-xs rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500 font-bold text-slate-800"
+                  >
+                    <option value="">-- Pilih Program --</option>
+                    <option value="dasar">Program Dasar</option>
+                    <option value="tahfidz">Program Tahfidz</option>
+                  </select>
+                </div>
+
+                <div className="space-y-1">
+                  <label className="text-[10px] font-bold text-slate-500 block uppercase">3. Pilih Siswa :</label>
                   <select
                     value={selectedBulanSiswaId}
                     onChange={(e) => setSelectedBulanSiswaId(e.target.value)}
-                    disabled={!selectedHalaqohId}
-                    className="w-full px-4 py-2 bg-white border border-slate-200 text-xs rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500 disabled:opacity-50"
+                    disabled={!selectedKelasId || !selectedProgram}
+                    className="w-full px-4 py-2 bg-white border border-slate-200 text-xs rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500 disabled:opacity-50 font-bold text-slate-800"
                   >
                     <option value="">-- Pilih Siswa --</option>
-                    {activeHalaqohStudents.map(s => (
+                    {selectBulanStudents.map(s => (
                       <option key={s.id} value={s.id}>{s.nama} ({s.noInduk})</option>
                     ))}
                   </select>
                 </div>
 
                 <div className="space-y-1">
-                  <label className="text-[10px] font-bold text-slate-500 block uppercase">3. Pilih Bulan :</label>
+                  <label className="text-[10px] font-bold text-slate-500 block uppercase">4. Pilih Bulan :</label>
                   <select
                     value={selectedBulanMonth}
                     onChange={(e) => setSelectedBulanMonth(e.target.value)}
-                    className="w-full px-4 py-2 bg-white border border-slate-200 text-xs rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                    className="w-full px-4 py-2 bg-white border border-slate-200 text-xs rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500 font-bold text-slate-800"
                   >
                     <option value="01">Januari (2026)</option>
                     <option value="02">Februari (2026)</option>
@@ -1286,7 +1442,7 @@ export default function MusyrifDashboard({
                   </div>
                 ) : (
                   <div className="text-center py-12 bg-slate-50 border border-dashed border-slate-200 rounded-3xl text-slate-400 text-xs">
-                    Silahkan lengkapi filter pilihan "Halaqoh" dan pilih "Siswa" di atas untuk memuat laporan bulanan.
+                    Silahkan pilih Kelas, Program, dan Siswa di atas untuk memuat laporan bulanan.
                   </div>
                 )}
               </div>
@@ -1295,6 +1451,34 @@ export default function MusyrifDashboard({
 
         </div>
       </div>
+
+      {/* AUTOMATIC ATTENDANCE DIALOG MODAL */}
+      {showAutoAbsenModal && (
+        <div className="fixed inset-0 z-50 overflow-y-auto bg-slate-900/70 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-white w-full max-w-md rounded-3xl shadow-xl overflow-hidden border border-slate-100 transform transition-all p-6 space-y-4">
+            <div className="text-center space-y-1">
+              <h3 className="text-base font-black text-slate-800">
+                Kehadiran Harian Musyrif
+              </h3>
+              <p className="text-xs text-slate-500">
+                Assalamu'alaikum {userNama}, silakan lakukan absensi kehadiran hari ini dengan mengambil foto selfie.
+              </p>
+            </div>
+
+            {isAutoSaving ? (
+              <div className="py-12 flex flex-col items-center justify-center space-y-3">
+                <RefreshCw className="w-8 h-8 animate-spin text-emerald-600" />
+                <p className="text-xs font-bold text-slate-600">Menyimpan Kehadiran...</p>
+              </div>
+            ) : (
+              <AbsenCamera
+                onCapture={handleAutoCapture}
+                onCancel={() => setShowAutoAbsenModal(false)}
+              />
+            )}
+          </div>
+        </div>
+      )}
 
       {/* INPUT / EDIT SETORAN HARIAN DIALOG MODAL */}
       {showInputModal && targetSiswa && (
@@ -1389,8 +1573,8 @@ export default function MusyrifDashboard({
       <div className="fixed bottom-0 left-0 right-0 z-40 bg-white border-t border-slate-200/80 shadow-[0_-4px_12px_rgba(0,0,0,0.05)] md:hidden">
         <div className="grid grid-cols-4 h-16 max-w-md mx-auto">
           {[
-            { id: 'input_dasar', label: 'Harian Dasar', icon: BookOpen },
-            { id: 'input_tahfidz', label: 'Harian Tahfidz', icon: BookMarked },
+            { id: 'absen_saya', label: 'Absen Saya', icon: UserCheck },
+            { id: 'input_siswa', label: 'Input Harian', icon: BookOpen },
             { id: 'rekap_hari', label: 'Rekap Harian', icon: Calendar },
             { id: 'rekap_bulan', label: 'Rekap Bulanan', icon: TrendingUp }
           ].map(tab => {
