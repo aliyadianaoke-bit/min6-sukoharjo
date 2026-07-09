@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { 
   Calendar, CheckCircle, Award, BookMarked, FileText, BarChart2, Plus, Edit2, 
   Trash2, LogOut, ChevronRight, Filter, AlertCircle, Sparkles, Smile, Info, BookOpen,
-  Printer, Share2, TrendingUp, Camera, UserCheck, Clock, RefreshCw
+  Printer, Share2, TrendingUp, Camera, UserCheck, Clock, RefreshCw, Search
 } from 'lucide-react';
 import { db } from '../firebase';
 import { collection, addDoc, updateDoc, deleteDoc, doc, getDocs, query, where } from 'firebase/firestore';
@@ -52,6 +52,7 @@ export default function MusyrifDashboard({
   const [rekapHariTanggal, setRekapHariTanggal] = useState(new Date().toISOString().split('T')[0]);
   const [selectedBulanMonth, setSelectedBulanMonth] = useState('06'); // Default June (2026 as current year)
   const [selectedBulanSiswaId, setSelectedBulanSiswaId] = useState('');
+  const [searchSiswa, setSearchSiswa] = useState('');
 
   // Form input states (for modal dialog input harian)
   const [showInputModal, setShowInputModal] = useState(false);
@@ -804,12 +805,20 @@ export default function MusyrifDashboard({
     
     // Check program
     if (selectedProgram === 'dasar') {
-      return s.isKelasDasar === true || (!s.isKelasDasar && !s.isKelasTahfidz);
+      if (!(s.isKelasDasar === true || (!s.isKelasDasar && !s.isKelasTahfidz))) return false;
+    } else if (selectedProgram === 'tahfidz') {
+      if (s.isKelasTahfidz !== true) return false;
+    } else {
+      return false;
     }
-    if (selectedProgram === 'tahfidz') {
-      return s.isKelasTahfidz === true;
+
+    // Check search term
+    if (searchSiswa.trim()) {
+      const term = searchSiswa.toLowerCase();
+      return s.nama.toLowerCase().includes(term) || (s.noInduk && s.noInduk.toLowerCase().includes(term));
     }
-    return false;
+
+    return true;
   });
 
   // Filter journals for "Rekap Harian" based on class, program, and date
@@ -993,6 +1002,7 @@ export default function MusyrifDashboard({
                   onChange={(e) => {
                     setSelectedKelasId(e.target.value);
                     setSelectedBulanSiswaId(''); // Reset selected student in reports
+                    setSearchSiswa(''); // Reset search
                   }}
                   className="w-full sm:w-60 px-4 py-2 bg-white border border-slate-200 text-xs rounded-xl focus:ring-2 focus:ring-emerald-500 focus:outline-none font-bold text-slate-800"
                 >
@@ -1014,6 +1024,7 @@ export default function MusyrifDashboard({
                     const programVal = e.target.value as 'dasar' | 'tahfidz' | '';
                     setSelectedProgram(programVal);
                     setSelectedBulanSiswaId('');
+                    setSearchSiswa(''); // Reset search
                   }}
                   className="w-full sm:w-60 px-4 py-2 bg-white border border-slate-200 text-xs rounded-xl focus:ring-2 focus:ring-emerald-500 focus:outline-none font-bold text-slate-800"
                 >
@@ -1034,9 +1045,25 @@ export default function MusyrifDashboard({
                       <span className="text-[10px] text-slate-400 font-semibold italic">Tampilan Mobile-Friendly Card</span>
                     </div>
 
+                    {/* Search Input Field */}
+                    <div className="relative">
+                      <span className="absolute inset-y-0 left-0 flex items-center pl-3.5 pointer-events-none">
+                        <Search className="w-4 h-4 text-slate-400" />
+                      </span>
+                      <input
+                        type="text"
+                        placeholder="Cari nama santri atau nomor induk di kelas ini..."
+                        value={searchSiswa}
+                        onChange={(e) => setSearchSiswa(e.target.value)}
+                        className="w-full pl-10 pr-4 py-2.5 bg-slate-50 border border-slate-200 text-xs rounded-xl focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 focus:outline-none font-medium text-slate-800 placeholder-slate-400 transition"
+                      />
+                    </div>
+
                     {inputTabStudents.length === 0 ? (
                       <div className="p-12 text-center text-xs text-slate-400 border border-dashed border-slate-200 rounded-2xl">
-                        Tidak ada santri yang terdaftar dalam program ini di Halaqoh terpilih.
+                        {searchSiswa.trim() 
+                          ? `Tidak ditemukan santri dengan nama atau nomor induk "${searchSiswa}".`
+                          : "Tidak ada santri yang terdaftar dalam program ini di Halaqoh terpilih."}
                       </div>
                     ) : (
                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">

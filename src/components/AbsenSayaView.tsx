@@ -27,6 +27,7 @@ export default function AbsenSayaView({ userId, userNama }: AbsenSayaViewProps) 
   const [isSaving, setIsSaving] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
   const [successMsg, setSuccessMsg] = useState('');
+  const [previewPhoto, setPreviewPhoto] = useState<string | null>(null);
 
   const getDayName = (dateStr: string): string => {
     const days = ['Minggu', 'Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu'];
@@ -202,50 +203,96 @@ export default function AbsenSayaView({ userId, userNama }: AbsenSayaViewProps) 
             <p className="text-[10px] text-slate-400 max-w-xs mx-auto">Riwayat foto, hari, tanggal dan waktu kehadiran Anda akan tercatat secara rapi di sini.</p>
           </div>
         ) : (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
+          <div className="bg-white rounded-3xl border border-slate-150 overflow-hidden shadow-xs divide-y divide-slate-100">
             {attendances.map((item) => (
               <div 
                 key={item.id} 
-                className="bg-white rounded-3xl border border-slate-150 overflow-hidden shadow-xs hover:shadow-sm transition duration-200 flex flex-col"
+                className="p-4 flex items-center justify-between hover:bg-slate-50/50 transition gap-4"
               >
-                {/* Photo Header */}
-                <div className="relative aspect-square w-full bg-slate-950 flex items-center justify-center overflow-hidden border-b border-slate-100">
-                  <img 
-                    src={item.fotoUrl} 
-                    alt={`Selfie ${item.tanggal}`} 
-                    className="w-full h-full object-cover"
-                    referrerPolicy="no-referrer"
-                  />
-                  <div className="absolute top-3 left-3 bg-slate-900/70 backdrop-blur-md px-2.5 py-1 rounded-xl text-[10px] font-extrabold text-white flex items-center gap-1">
-                    <Calendar className="w-3 h-3 text-emerald-400" />
-                    <span>{item.hari}</span>
+                {/* Left: Avatar & Date details */}
+                <div className="flex items-center gap-3.5 min-w-0">
+                  <div 
+                    onClick={() => setPreviewPhoto(item.fotoUrl)}
+                    className="relative w-12 h-12 rounded-2xl bg-slate-100 overflow-hidden border border-slate-200 cursor-pointer group shrink-0 shadow-inner"
+                    title="Klik untuk perbesar foto"
+                  >
+                    <img 
+                      src={item.fotoUrl} 
+                      alt={`Selfie ${item.tanggal}`} 
+                      className="w-full h-full object-cover group-hover:scale-110 transition duration-250"
+                      referrerPolicy="no-referrer"
+                    />
+                    <div className="absolute inset-0 bg-black/20 opacity-0 group-hover:opacity-100 transition flex items-center justify-center">
+                      <Camera className="w-4 h-4 text-white" />
+                    </div>
                   </div>
-                </div>
 
-                {/* Info Footer */}
-                <div className="p-4 space-y-2 flex-1 flex flex-col justify-between">
-                  <div className="space-y-1">
-                    <p className="text-xs font-black text-slate-800 leading-tight">
-                      {getFormattedDate(item.tanggal)}
-                    </p>
-                    <div className="flex items-center gap-1 text-[11px] text-slate-500 font-medium">
+                  <div className="min-w-0">
+                    <div className="flex items-center gap-1.5 flex-wrap">
+                      <span className="text-[10px] font-extrabold text-slate-500 bg-slate-100 px-2 py-0.5 rounded-lg uppercase tracking-wider">
+                        {item.hari}
+                      </span>
+                      <p className="text-xs font-black text-slate-800 truncate">
+                        {getFormattedDate(item.tanggal)}
+                      </p>
+                    </div>
+                    <div className="flex items-center gap-1 text-[11px] text-slate-500 font-medium mt-1">
                       <Clock className="w-3.5 h-3.5 text-slate-400" />
                       <span>Waktu Absen: <strong className="text-slate-700">{item.waktu} WIB</strong></span>
                     </div>
                   </div>
+                </div>
+
+                {/* Right: Status Tag & Optional View Button */}
+                <div className="flex items-center gap-3 shrink-0">
+                  <span className="px-2.5 py-1 bg-emerald-50 text-emerald-700 text-[10px] font-extrabold rounded-xl border border-emerald-100 uppercase tracking-wider">
+                    HADIR
+                  </span>
                   
-                  <div className="pt-2 border-t border-slate-100 flex items-center justify-between text-[10px]">
-                    <span className="text-slate-400 font-bold uppercase tracking-wider">Status</span>
-                    <span className="px-2 py-0.5 bg-emerald-50 text-emerald-700 font-extrabold rounded-lg">
-                      HADIR
-                    </span>
-                  </div>
+                  <button
+                    onClick={() => setPreviewPhoto(item.fotoUrl)}
+                    className="hidden sm:inline-flex items-center gap-1 px-3 py-1.5 hover:bg-slate-100 text-slate-600 text-xs font-bold rounded-xl transition cursor-pointer"
+                  >
+                    <Camera className="w-3.5 h-3.5 text-slate-400" />
+                    <span>Lihat Foto</span>
+                  </button>
                 </div>
               </div>
             ))}
           </div>
         )}
       </div>
+
+      {/* Lightbox Preview Modal */}
+      {previewPhoto && (
+        <div 
+          className="fixed inset-0 z-55 bg-slate-950/80 backdrop-blur-xs flex items-center justify-center p-4"
+          onClick={() => setPreviewPhoto(null)}
+        >
+          <div 
+            className="bg-white rounded-3xl p-4 max-w-sm w-full border border-slate-100 shadow-2xl relative"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="relative aspect-square w-full rounded-2xl bg-slate-900 overflow-hidden mb-4">
+              <img 
+                src={previewPhoto} 
+                alt="Foto Selfie Kehadiran" 
+                className="w-full h-full object-cover"
+                referrerPolicy="no-referrer"
+              />
+            </div>
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-extrabold text-slate-700">Foto Absensi Selfie</span>
+              <button
+                onClick={() => setPreviewPhoto(null)}
+                className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold rounded-xl transition cursor-pointer"
+              >
+                Tutup
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Manual Absen Camera Dialog Overlay */}
       {showCameraModal && (
