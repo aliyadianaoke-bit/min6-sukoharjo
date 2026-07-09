@@ -58,6 +58,15 @@ service cloud.firestore {
         && data.nilai is string && data.nilai.size() <= 10;
     }
 
+    function isValidAbsenMusyrif(data) {
+      return data.musyrifId is string && data.musyrifId.size() <= 128
+        && data.musyrifNama is string && data.musyrifNama.size() <= 150
+        && data.tanggal is string && data.tanggal.size() <= 50
+        && data.waktu is string && data.waktu.size() <= 50
+        && data.hari is string && data.hari.size() <= 50
+        && data.fotoUrl is string && data.fotoUrl.size() <= 5000000;
+    }
+
     // Rules for Settings Collection
     match /settings/{settingId} {
       allow read: if true;
@@ -92,6 +101,12 @@ service cloud.firestore {
     match /catatan_harian/{journalId} {
       allow read: if true;
       allow write: if isValidId(journalId) && (request.method == 'delete' || isValidCatatanHarian(request.resource.data));
+    }
+
+    // Rules for Absen Musyrif Collection
+    match /absen_musyrif/{absenId} {
+      allow read: if true;
+      allow write: if isValidId(absenId) && (request.method == 'delete' || isValidAbsenMusyrif(request.resource.data));
     }
   }
 }

@@ -102,6 +102,27 @@
         "evaluasiTahsin",
         "nilai"
       ]
+    },
+    "AbsenMusyrif": {
+      "title": "AbsenMusyrif",
+      "description": "Attendance log for Musyrif with selfie photo",
+      "type": "object",
+      "properties": {
+        "musyrifId": { "type": "string" },
+        "musyrifNama": { "type": "string" },
+        "tanggal": { "type": "string" },
+        "waktu": { "type": "string" },
+        "hari": { "type": "string" },
+        "fotoUrl": { "type": "string" }
+      },
+      "required": [
+        "musyrifId",
+        "musyrifNama",
+        "tanggal",
+        "waktu",
+        "hari",
+        "fotoUrl"
+      ]
     }
   },
   "firestore": {
@@ -128,6 +149,10 @@
     "/catatan_harian/{journalId}": {
       "schema": "CatatanHarian",
       "description": "Daily setoran diaries"
+    },
+    "/absen_musyrif/{absenId}": {
+      "schema": "AbsenMusyrif",
+      "description": "Attendance list of Musyrifs"
     }
   }
 }

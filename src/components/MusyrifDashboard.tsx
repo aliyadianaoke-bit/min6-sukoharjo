@@ -1087,9 +1087,33 @@ export default function MusyrifDashboard({
                                   <p className="line-clamp-2 text-slate-500 leading-snug text-[11px]">Eval: {logHariIni.evaluasiTahsin}</p>
                                 </div>
                               ) : (
-                                <div className="p-3 bg-slate-50 border border-dashed border-slate-200 rounded-xl text-center text-xs text-slate-400 italic">
-                                  Belum ada setoran hari ini.
-                                </div>
+                                <>
+                                  {selectedProgram === 'dasar' && (() => {
+                                    const lastLog = journals
+                                      .filter(j => j.siswaId === siswa.id)
+                                      .sort((a, b) => b.tanggal.localeCompare(a.tanggal))[0];
+                                    if (lastLog) {
+                                      const parts = lastLog.tanggal.split('-');
+                                      const formattedDate = parts.length === 3 
+                                        ? `${parseInt(parts[2], 10)} ${['Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni', 'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'][parseInt(parts[1], 10) - 1]} ${parts[0]}`
+                                        : lastLog.tanggal;
+                                      return (
+                                        <div className="p-3 bg-amber-50/40 border border-amber-200/60 rounded-xl text-xs space-y-1">
+                                          <div className="flex items-center justify-between text-[10px] font-extrabold text-amber-800 uppercase tracking-wider">
+                                            <span>Setoran Terakhir ({formattedDate})</span>
+                                            <span className="bg-amber-100 text-amber-900 px-1.5 rounded text-[9px] font-black">{lastLog.nilai}</span>
+                                          </div>
+                                          <p className="font-bold text-slate-700">Materi: <span className="text-amber-950 font-extrabold">{lastLog.materiSetoran}</span></p>
+                                          <p className="text-slate-500 leading-relaxed text-[11px] italic">Eval: {lastLog.evaluasiTahsin}</p>
+                                        </div>
+                                      );
+                                    }
+                                    return null;
+                                  })()}
+                                  <div className="p-3 bg-slate-50 border border-dashed border-slate-200 rounded-xl text-center text-xs text-slate-400 italic">
+                                    Belum ada setoran hari ini.
+                                  </div>
+                                </>
                               )}
                             </div>
 
